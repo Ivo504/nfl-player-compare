@@ -1,0 +1,265 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/barlow-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/barlow-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-condensed-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/barlow-condensed-latin-700-normal.woff2) format("woff2")}
+</style>
+<title>NFL Player Compare</title>
+<style>
+/* Layout: one column. Picker panel on top, one filter row, then tabbed views
+   (compare table, trend chart, season log). Utilitarian, scoreboard-condensed labels. */
+:root {
+  --font-ui: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-label: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --tint: #f0efec;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --line: rgba(11, 11, 11, 0.10);
+  --accent: #0b0b0b;
+  --on-accent: #fcfcfb;
+  --focus: #2a78d6;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --shadow: rgba(0, 0, 0, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --tint: #262625;
+    --ink: #f0efec;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #3d3d3a;
+    --line: rgba(255, 255, 255, 0.10);
+    --accent: #f0efec;
+    --on-accent: #1a1a19;
+    --focus: #3987e5;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --shadow: rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0d0d;
+  --surface: #1a1a19;
+  --tint: #262625;
+  --ink: #f0efec;
+  --ink2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #3d3d3a;
+  --line: rgba(255, 255, 255, 0.10);
+  --accent: #f0efec;
+  --on-accent: #1a1a19;
+  --focus: #3987e5;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --shadow: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.45; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button { font: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.app { max-width: 1120px; margin-inline: auto; padding-inline: 16px; padding-block: 20px 56px; display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 720px) { .app { padding-inline: 24px; } }
+
+h1 { margin: 0; font-family: var(--font-label); font-weight: 700; font-size: clamp(30px, 6vw, 44px); line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; text-wrap: balance; }
+.meta { margin: 8px 0 0; color: var(--ink2); font-size: 14px; }
+.lbl { font-family: var(--font-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink2); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.searchrow { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+input[type="search"] { flex: 1 1 280px; min-width: 0; font: inherit; padding: 10px 12px; border: 1px solid var(--axis); border-radius: 6px; background: var(--bg); color: var(--ink); }
+input[type="search"]:disabled { opacity: 0.6; }
+select { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--axis); border-radius: 6px; background: var(--surface); color: var(--ink); max-width: 100%; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 13px; font-weight: 600; padding: 4px 11px; border: 1px solid var(--axis); border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer; }
+.chip:hover { background: var(--tint); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip.preset { font-weight: 500; }
+
+.results { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.res { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; text-align: left; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--grid); background: var(--surface); color: var(--ink); cursor: pointer; }
+.res:last-child { border-bottom: 0; }
+.res:hover:not(:disabled) { background: var(--tint); }
+.res:disabled { cursor: default; color: var(--ink2); }
+.rn { font-weight: 600; }
+.rm { color: var(--ink2); font-size: 13px; }
+.none { padding: 10px 12px; color: var(--ink2); }
+.presetrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+
+.picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.picks:empty { display: none; }
+.pcard { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-width: 0; }
+.pcard .sw { margin-top: 4px; }
+.pinfo { min-width: 0; flex: 1; }
+.pn { font-weight: 700; overflow-wrap: anywhere; }
+.pm { color: var(--ink2); font-size: 13px; }
+.x { margin-left: auto; width: 30px; height: 30px; flex: none; border: 1px solid var(--axis); border-radius: 6px; background: transparent; color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+.x:hover { background: var(--tint); }
+.pill { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 7px; border: 1px solid var(--axis); border-radius: 999px; color: var(--ink2); }
+.rm + .pill, .res .pill { margin-top: 0; }
+
+.filters { display: flex; flex-direction: column; gap: 12px; }
+.frow { display: flex; flex-wrap: wrap; gap: 12px 26px; align-items: flex-end; }
+.fg { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fg.wide { flex: 1 1 100%; }
+.yrs { display: flex; align-items: center; gap: 8px; }
+.seg { display: inline-flex; flex-wrap: nowrap; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; max-width: 100%; }
+.seg button { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; padding: 7px 12px; border: 0; background: transparent; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button:hover { background: var(--tint); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button[aria-pressed="true"] .sw { box-shadow: 0 0 0 2px var(--on-accent); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--axis); overflow-x: auto; }
+.tab { font-family: var(--font-label); font-weight: 600; font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; padding: 8px 16px; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; background: transparent; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+
+main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+main > div { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.hint, .note { margin: 0; font-size: 13px; color: var(--ink2); max-width: 78ch; }
+.empty { margin: 0; padding: 28px 0; color: var(--ink2); }
+
+.k0 { --pc: var(--s1); }
+.k1 { --pc: var(--s2); }
+.k2 { --pc: var(--s3); }
+.k3 { --pc: var(--s4); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--pc); flex: none; }
+.key { display: inline-block; width: 16px; height: 3px; border-radius: 2px; background: var(--pc); flex: none; }
+
+.tablewrap { overflow-x: auto; max-width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+table.cmp { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cmp th, .cmp td { padding: 7px 12px; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+.cmp thead th { background: var(--surface); border-bottom: 1px solid var(--axis); vertical-align: bottom; font-weight: 600; }
+.cmp tbody th[scope="row"], .cmp tfoot th[scope="row"] { text-align: left; font-weight: 500; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.cmp td { text-align: right; }
+.cmp th.ph { text-align: right; min-width: 150px; }
+.pnh { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-weight: 700; }
+.cmp th.ph .pm { font-weight: 400; }
+.cmp tr.g th { position: sticky; left: 0; text-align: left; font-family: var(--font-label); font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink2); background: var(--tint); }
+.cmp td.lead { font-weight: 700; background: color-mix(in srgb, var(--pc) 16%, var(--surface)); }
+.cmp td.small { color: var(--ink2); font-style: italic; }
+.cmp tbody tr:last-child > * { border-bottom: 0; }
+.cmp.log th.l, .cmp.log td.l { text-align: left; }
+.cmp.log thead th { text-align: right; font-size: 13px; }
+.cmp.log thead th.l { text-align: left; }
+.cmp.log thead th.gh { text-align: center; font-family: var(--font-label); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink2); background: var(--tint); border-left: 1px solid var(--axis); }
+.cmp.log tfoot th, .cmp.log tfoot td { font-weight: 700; background: var(--tint); border-top: 1px solid var(--axis); border-bottom: 0; }
+.cmp.log tfoot th[scope="row"] { background: var(--tint); }
+
+.metricrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chartbox { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.ct { margin-bottom: 8px; }
+.cn { font-family: var(--font-label); font-weight: 700; font-size: 22px; letter-spacing: 0.03em; text-transform: uppercase; }
+.cs { color: var(--ink2); font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; font-size: 14px; }
+.lg { display: inline-flex; align-items: center; gap: 8px; }
+.chartwrap { position: relative; width: 100%; border-radius: 6px; }
+svg.chart { display: block; width: 100%; height: auto; touch-action: pan-y; }
+svg.chart text { font-family: var(--font-ui); }
+.gl { stroke: var(--grid); stroke-width: 1; }
+.axl { stroke: var(--axis); stroke-width: 1; }
+.tk { fill: var(--muted); font-size: 12px; }
+.ln { fill: none; stroke: var(--pc); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dot, .hl { fill: var(--pc); stroke: var(--surface); stroke-width: 2; }
+.cross { stroke: var(--axis); stroke-width: 1; }
+.tip { position: absolute; z-index: 3; pointer-events: none; min-width: 170px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; box-shadow: 0 4px 16px var(--shadow); font-size: 13px; }
+.tip .th { font-family: var(--font-label); font-weight: 700; letter-spacing: 0.06em; margin-bottom: 4px; }
+.tip .tr { display: grid; grid-template-columns: 16px auto 1fr auto; gap: 8px; align-items: center; }
+.tip .tr b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.tip .tn, .tip .tm { color: var(--ink2); }
+.tip .tm { font-size: 12px; }
+.dtl summary { cursor: pointer; font-family: var(--font-label); font-weight: 600; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink2); padding: 4px 0 8px; }
+
+.bio { color: var(--ink2); font-size: 13px; margin-top: 2px; }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--tint); border: 1px solid var(--line); white-space: nowrap; }
+.links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
+.links a { color: var(--ink); }
+.cmp .yrs { font-size: 11px; font-weight: 400; color: var(--ink2); white-space: normal; max-width: 150px; margin-left: auto; }
+.foot { border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; color: var(--ink2); }
+.foot h2 { margin: 0 0 6px; font-family: var(--font-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+.foot ul { margin: 0; padding-left: 18px; max-width: 80ch; display: flex; flex-direction: column; gap: 4px; }
+.foot a { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1>NFL Player Compare</h1>
+    <p class="meta" id="meta"></p>
+  </header>
+
+  <section class="panel" aria-label="Choose players">
+    <label class="lbl" for="q">Add players (up to 4)</label>
+    <div class="searchrow">
+      <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search players">
+      <div class="chips" id="grpchips"></div>
+    </div>
+    <div class="results" id="results" hidden></div>
+    <div class="presetrow"><span class="lbl">Quick start</span><div class="chips" id="presets"></div></div>
+    <div class="picks" id="picks"></div>
+    <p class="note" id="example" hidden>Example comparison. Search above to swap in your own players.</p>
+  </section>
+
+  <section class="filters" aria-label="Filters">
+    <div class="frow">
+      <div class="fg"><span class="lbl">Games</span><div class="seg" id="stseg"></div></div>
+      <div class="fg"><span class="lbl">Years</span><div class="yrs"><select id="from" aria-label="From year"></select><span>to</span><select id="to" aria-label="To year"></select></div></div>
+      <div class="fg"><span class="lbl">Values</span><div class="seg" id="pgseg"></div></div>
+      <div class="fg" id="xwrap" hidden><span class="lbl">Chart x-axis</span><div class="seg" id="xseg"></div></div>
+    </div>
+    <div class="frow"><div class="fg wide"><span class="lbl">Stat groups</span><div class="chips" id="cats"></div></div></div>
+  </section>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="View"></div>
+  <main id="view" aria-live="polite"></main>
+
+  <footer class="foot">
+    <h2>About these numbers</h2>
+    <ul>
+      <li>Source: <a href="https://github.com/nflverse/nflverse-data" target="_blank" rel="noopener">nflverse</a> player stats, built from play-by-play, 1999 season to the present.</li>
+      <li>Totals can differ slightly from official league records. For example, Drew Brees's career passing yards add up to 80,428 here and 80,358 officially.</li>
+      <li>Career means 1999 onward (nflverse has no player stats before 1999). Players who were active before 1999 are marked, and their career totals are partial.</li>
+      <li>Games counts weeks with at least one recorded stat, so a player who dressed but recorded nothing is not counted.</li>
+      <li>Rate stats such as passer rating or yards per carry need a minimum sample (for example 50 attempts). Smaller samples show in italics and are not ranked.</li>
+      <li>Awards: AP MVP, Offensive and Defensive Player of the Year, Offensive and Defensive Rookie of the Year, Comeback Player of the Year, Walter Payton Man of the Year and Super Bowl MVP, 1999 season onward, from Pro Football Reference (1999 Comeback Player of the Year is not included). Offensive linemen are not in this dataset, so winners such as Will Shields and Andrew Whitworth do not appear.</li>
+      <li>Pro Bowl, first-team All-Pro and Hall of Fame counts come from nflverse draft data (Pro Football Reference) and cover each player's whole career, but only drafted players. Undrafted players show a dash even if they earned these honors.</li>
+      <li>QB wins and losses (quarterbacks only) credit the team result to the starting quarterback of each game, per nflverse schedules, so a QB who is pulled or relieved still gets the decision. Ties count half in win %. A quarterback who only came off the bench has no record.</li>
+      <li>Super Bowl wins and appearances count games in which the player recorded a stat.</li>
+      <li>Photos are not embedded because the page can only show images that ship with it. Each player card links to an ESPN profile with a photo and bio.</li>
+      <li>EPA and fantasy points use nflverse definitions. Postseason samples are small, so read them with care.</li>
+    </ul>
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script src="extra.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
