@@ -113,7 +113,25 @@ header.hero .meta { color: rgba(255,255,255,0.85); }
 .ball { display: inline-block; width: 0.9em; height: 0.56em; margin-right: 0.25em; vertical-align: 0.12em; border-radius: 50%; background: #8b4513; background: radial-gradient(ellipse at 35% 35%, #b5652b, #6b3410); position: relative; transform: rotate(-20deg); transition: transform 0.4s; }
 .ball::after { content: ""; position: absolute; left: 22%; right: 22%; top: 50%; height: 2px; margin-top: -1px; background: #fff; border-radius: 1px; }
 header.hero:hover .ball { transform: rotate(340deg); }
-.hbtns { display: flex; gap: 8px; position: relative; z-index: 1; }
+.hbtns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; position: relative; z-index: 1; }
+.modesw { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.35); }
+.modesw button { font: inherit; font-family: var(--font-label); font-size: 17px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 16px; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,0.85); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.modesw button:hover { color: #fff; background: rgba(255,255,255,0.12); }
+.modesw button[aria-pressed="true"] { background: #fff; color: var(--turf-a); }
+.pick { display: flex; flex-direction: column; gap: 12px; }
+.pick[hidden] { display: none; }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 45%), 1fr)); gap: 10px; }
+@media (max-width: 520px) { .tile span { display: none; } .tile { padding: 5px 8px; } .tdiv { padding: 6px; } }
+.tdiv { display: flex; flex-direction: column; gap: 5px; padding: 8px; border-radius: 10px; background: var(--tint); border: 1px solid var(--line); }
+.dvh { all: unset; cursor: pointer; font-family: var(--font-label); font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink2); padding: 2px 4px; border-radius: 4px; }
+.dvh:hover { color: var(--accent); }
+.dvh:focus-visible { outline: 2px solid var(--focus); }
+.tile { --pc: transparent; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-left: 6px solid var(--tc); border-radius: 7px; background: var(--surface); color: var(--ink); cursor: pointer; transition: transform 0.15s, background 0.15s, box-shadow 0.15s; }
+.tile b { font-family: var(--font-label); font-size: 15px; letter-spacing: 0.04em; min-width: 34px; }
+.tile:hover:not(:disabled) { transform: translateX(3px); background: color-mix(in srgb, var(--tc) 14%, var(--surface)); }
+.tile[aria-pressed="true"] { background: var(--tc); border-color: var(--tc); color: #fff; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--pc); }
+.tile:disabled { opacity: 0.45; cursor: default; }
+.av.team { background: linear-gradient(135deg, var(--tc) 60%, var(--tc2) 60%); font-size: 15px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 45%, transparent); }
 .hbtn { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; border: 1px solid rgba(255,255,255,0.45); border-radius: 999px; background: rgba(255,255,255,0.12); color: #fff; cursor: pointer; backdrop-filter: blur(4px); transition: background 0.15s, transform 0.15s; }
 .hbtn:hover { background: rgba(255,255,255,0.24); transform: translateY(-1px); }
 h1 { margin: 0; font-family: var(--font-label); font-weight: 700; font-size: clamp(30px, 6vw, 44px); line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; text-wrap: balance; }
@@ -297,10 +315,11 @@ svg.chart text { font-family: var(--font-ui); }
       <h1><span class="ball" aria-hidden="true"></span>NFL Player Compare</h1>
       <p class="meta" id="meta"></p>
     </div>
-    <div class="hbtns"><button type="button" class="hbtn" id="theme" aria-label="Switch color theme">Dark mode</button></div>
+    <div class="hbtns"><div class="modesw" id="modesw"></div><button type="button" class="hbtn" id="theme" aria-label="Switch color theme">Dark mode</button></div>
   </header>
 
-  <section class="panel" aria-label="Choose players">
+  <section class="panel" aria-label="Choose players or teams">
+    <div id="ppick" class="pick">
     <label class="lbl" for="q">Add players (up to 4)</label>
     <div class="searchrow">
       <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search players">
@@ -308,6 +327,12 @@ svg.chart text { font-family: var(--font-ui); }
     </div>
     <div class="results" id="results" hidden></div>
     <div class="presetrow"><span class="lbl">Quick start</span><div class="chips" id="presets"></div></div>
+    </div>
+    <div id="tpick" class="pick" hidden>
+      <span class="lbl">Pick teams (up to 4) · click a division name to compare all four</span>
+      <div class="tgrid" id="tgrid"></div>
+      <div class="presetrow"><span class="lbl">Quick start</span><div class="chips" id="tpresets"></div></div>
+    </div>
     <div class="picks" id="picks"></div>
     <p class="note" id="example" hidden>Example comparison. Search above to swap in your own players.</p>
   </section>
@@ -339,11 +364,16 @@ svg.chart text { font-family: var(--font-ui); }
       <li>Super Bowl wins and appearances count games in which the player recorded a stat.</li>
       <li>Photos are not embedded because the page can only show images that ship with it. Each player card links to an ESPN profile with a photo and bio.</li>
       <li>EPA and fantasy points use nflverse definitions. Postseason samples are small, so read them with care.</li>
+      <li>Teams: 2000 season to the present, from nflverse team stats and schedules. Relocated franchises are combined under today's team (Raiders, Chargers, Rams), and the season log shows the abbreviation used that year. The Texans begin in 2002.</li>
+      <li>Team records, points and playoff results come from final scores. Yards and points allowed are the opponents' totals in those games; total yards are passing yards minus sack yards plus rushing yards, as the NFL counts them.</li>
+      <li>Team playoff and Super Bowl counts ignore the Games filter, so they show even when Regular season is picked.</li>
     </ul>
   </footer>
 </div>
 
 <script src="data.js"></script>
 <script src="extra.js"></script>
+<script src="teams.js"></script>
 <script src="core.js"></script>
+<script src="teamcore.js"></script>
 <script src="app.js"></script>

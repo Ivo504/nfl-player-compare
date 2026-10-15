@@ -1,9 +1,8 @@
 /* NFL Player Compare: UI. Depends on window.NFL (data.js) and window.Core (core.js). */
 (function () {
   'use strict';
-  var C = window.Core;
+  var C = window.Core, T = window.TCore;
   var MAXP = 4;
-  var Y0 = C.years[0], Y1 = C.years[1];
   var SVGNS = 'http://www.w3.org/2000/svg';
   var KEY = 'nflcompare.v1';
 
@@ -54,10 +53,36 @@
     return { label: p[0], ids: p[1].map(function (n) { return C.findByName(n[0], n[1]); }).filter(function (i) { return i >= 0; }) };
   }).filter(function (p) { return p.ids.length >= 2; });
 
+  var TPRESETS = [
+    ['Patriots, Chiefs, Steelers, 49ers', ['NE', 'KC', 'PIT', 'SF']],
+    ['Packers, Bears, Lions, Vikings', ['GB', 'CHI', 'DET', 'MIN']],
+    ['Cowboys, Eagles, Giants, Commanders', ['DAL', 'PHI', 'NYG', 'WAS']],
+    ['Ravens, Bengals, Browns, Steelers', ['BAL', 'CIN', 'CLE', 'PIT']]
+  ].map(function (p) { return { label: p[0], ids: T ? p[1].map(function (a) { return T.byAbbr.get(a); }).filter(function (i) { return i != null; }) : [] }; });
+
+  // Players and teams share the views; a model supplies the stats, names and aggregation for each.
+  var MODELS = {
+    players: {
+      noun: 'player', years: C.years, CATS: C.CATS, DEFS: C.DEFS, aggregate: C.aggregate, seasonHonors: C.seasonHonors,
+      autoCats: function (tots, ids) { return C.autoCats(tots, ids.map(function (p) { return C.players[p][3]; })); },
+      name: function (p) { return C.players[p][1]; },
+      sub: function (p, x) { return C.players[p][2] + ' · ' + spanText(x); }
+    },
+    teams: T ? {
+      noun: 'team', years: T.years, CATS: T.CATS, DEFS: T.DEFS, aggregate: T.aggregate, seasonHonors: T.seasonHonors, autoCats: T.autoCats,
+      name: function (t) { return T.teams[t][1]; },
+      sub: function (t, x) { return T.teams[t][3] + ' · ' + spanText(x); }
+    } : null
+  };
+  function M() { return MODELS[S.mode]; }
+
   var S = {
-    picks: [], grp: 'ALL', st: 'REG', from: Y0, to: Y1, pg: false,
+    mode: 'players', picks: [], grp: 'ALL', st: 'REG', from: C.years[0], to: C.years[1], pg: false,
     cats: new Set(), manual: false, tab: 'compare', metric: null, xmode: 'cal', logp: null, example: false
   };
+  // per-mode selections, so switching between players and teams keeps each side's picks
+  var MODEKEYS = ['picks', 'from', 'to', 'cats', 'manual', 'metric', 'logp', 'example'];
+  var STORE = { players: null, teams: null };
   var RO = null;
   var shown = new Set(); // player ids already on screen (so only new cards animate)
   var hiddenSlots = new Set(); // chart series turned off via the legend
@@ -70,8 +95,12 @@
   // ---------- persistence (per-viewer convenience only) ----------
   function save() {
     try {
+      var pp = S.mode === 'players' ? S.picks : (STORE.players ? STORE.players.picks : []);
+      var tp = S.mode === 'teams' ? S.picks : (STORE.teams ? STORE.teams.picks : []);
       localStorage.setItem(KEY, JSON.stringify({
-        ids: S.picks.map(function (p) { return C.players[p.p][0]; }),
+        mode: S.mode,
+        ids: pp.map(function (p) { return C.players[p.p][0]; }),
+        tids: T ? tp.map(function (p) { return T.teams[p.p][0]; }) : [],
         st: S.st, pg: S.pg, tab: S.tab, xmode: S.xmode, from: S.from, to: S.to
       }));
     } catch (e) { /* storage unavailable */ }
@@ -82,7 +111,7 @@
 
   // ---------- state helpers ----------
   function aggs() {
-    return S.picks.map(function (pk) { return C.aggregate(pk.p, { st: S.st, from: S.from, to: S.to }); });
+    return S.picks.map(function (pk) { return M().aggregate(pk.p, { st: S.st, from: S.from, to: S.to }); });
   }
   function freeSlot() {
     for (var s = 0; s < MAXP; s++) if (!S.picks.some(function (p) { return p.slot === s; })) return s;
@@ -112,7 +141,7 @@
 
   function update() {
     var A = aggs();
-    if (!S.manual) S.cats = C.autoCats(A.map(function (x) { return x.tot; }), S.picks.map(function (pk) { return C.players[pk.p][3]; }));
+    if (!S.manual) S.cats = M().autoCats(A.map(function (x) { return x.tot; }), S.picks.map(function (pk) { return pk.p; }));
     renderPicks(A);
     renderResults();
     syncControls();
@@ -162,6 +191,9 @@
   function renderPicks(A) {
     var box = $('picks');
     box.replaceChildren();
+    var teams = S.mode === 'teams';
+    $('ppick').hidden = teams; $('tpick').hidden = !teams;
+    if (teams) { renderTeamPicks(A, box); return; }
     A.forEach(function (x, i) {
       var pk = S.picks[i], pl = C.players[pk.p];
       var hn = C.honors(pk.p);
@@ -179,9 +211,91 @@
     });
     shown = new Set(S.picks.map(function (pk) { return pk.p; }));
     $('example').hidden = !S.example;
+    $('example').textContent = 'Example comparison. Search above to swap in your own players.';
     var full = S.picks.length >= MAXP;
     $('q').disabled = full;
     $('q').placeholder = full ? 'Remove a player to add another' : 'Search ' + C.players.length.toLocaleString('en-US') + ' players: Mahomes, T.J. Watt, Fitzgerald';
+  }
+  function renderTeamPicks(A, box) {
+    A.forEach(function (x, i) {
+      var pk = S.picks[i], tm = T.teams[pk.p], tot = x.tot;
+      var isNew = !shown.has(pk.p);
+      var badges = [];
+      if (tot.sbw) badges.push(h('span', { class: 'badge gold', text: times(tot.sbw, 'Super Bowl champion') }));
+      if (tot.sba - tot.sbw > 0) badges.push(h('span', { class: 'badge aw', text: times(tot.sba - tot.sbw, 'Super Bowl loss') }));
+      badges.push(h('span', { class: 'badge', text: tot.po + ' playoff season' + (tot.po === 1 ? '' : 's') }));
+      var old = tot.teams.filter(function (a) { return a !== tm[0]; });
+      box.append(h('div', { class: 'pcard k' + pk.slot + (isNew ? ' new' : '') },
+        h('div', { class: 'av team', style: '--tc:' + tm[4] + ';--tc2:' + tm[5], 'aria-hidden': 'true', text: tm[0] }),
+        h('div', { class: 'pinfo' },
+          h('div', { class: 'pn', text: tm[1] }),
+          h('div', { class: 'pm', text: tm[3] + ' · ' + spanText(x) }),
+          h('div', { class: 'bio', text: tot.w + '\u2013' + tot.l + (tot.t ? '\u2013' + tot.t : '') + ' (' + C.fmt({ fmt: 'pct' }, (tot.w + tot.t / 2) / Math.max(1, tot.w + tot.l + tot.t)) + ') · ' + tot.pf.toLocaleString('en-US') + ' points scored' }),
+          old.length ? h('div', { class: 'bio', text: 'Played as ' + old.join(', ') + ' in some seasons' }) : null,
+          h('div', { class: 'badges' }, badges)),
+        h('button', { type: 'button', class: 'x', 'aria-label': 'Remove ' + tm[1], onclick: function () { removePlayer(pk.p); } }, '×')));
+    });
+    shown = new Set(S.picks.map(function (pk) { return pk.p; }));
+    $('example').hidden = !S.example;
+    $('example').textContent = 'Example comparison. Click teams above to swap in your own.';
+    var full = S.picks.length >= MAXP;
+    Array.prototype.forEach.call($('tgrid').querySelectorAll('.tile'), function (b) {
+      var t = +b.getAttribute('data-t');
+      var pk = S.picks.filter(function (x) { return x.p === t; })[0];
+      b.setAttribute('aria-pressed', String(!!pk));
+      b.className = 'tile' + (pk ? ' k' + pk.slot : '');
+      b.disabled = full && !pk;
+    });
+  }
+  function buildTeamGrid() {
+    var grid = $('tgrid'), divs = {};
+    T.teams.forEach(function (tm, i) { (divs[tm[3]] = divs[tm[3]] || []).push(i); });
+    Object.keys(divs).sort().forEach(function (dv) {
+      var ids = divs[dv];
+      grid.append(h('div', { class: 'tdiv' },
+        h('button', { type: 'button', class: 'dvh', title: 'Compare the whole ' + dv, onclick: function () { setPicks(ids); S.manual = false; S.example = false; update(); } }, dv),
+        ids.map(function (t) {
+          var tm = T.teams[t];
+          return h('button', {
+            type: 'button', class: 'tile', 'data-t': t, style: '--tc:' + tm[4], 'aria-pressed': 'false', title: tm[1],
+            onclick: function () { if (S.picks.some(function (x) { return x.p === t; })) removePlayer(t); else addPlayer(t); }
+          }, h('b', { text: tm[0] }), h('span', { text: tm[1].split(' ').slice(-1)[0] }));
+        })));
+    });
+    var ps = $('tpresets');
+    TPRESETS.forEach(function (p) {
+      if (p.ids.length < 2) return;
+      ps.append(h('button', { type: 'button', class: 'chip preset', text: p.label, onclick: function () { setPicks(p.ids); S.manual = false; S.example = false; update(); } }));
+    });
+    ps.append(h('button', { type: 'button', class: 'chip dice', text: '\u2684 Random matchup', title: 'Pick 2 to 4 random teams', onclick: randomMatchup }));
+  }
+  function setMode(m) {
+    if (m === S.mode || !MODELS[m]) return;
+    var cur = {};
+    MODEKEYS.forEach(function (k) { cur[k] = S[k]; });
+    STORE[S.mode] = cur;
+    S.mode = m;
+    var nx = STORE[m];
+    if (nx) MODEKEYS.forEach(function (k) { S[k] = nx[k]; });
+    else {
+      var ys = M().years;
+      S.from = ys[0]; S.to = ys[1]; S.manual = false; S.metric = null; S.logp = null;
+      var pre = m === 'teams' ? TPRESETS : PRESETS;
+      setPicks(pre.length ? pre[0].ids : []); S.example = true;
+    }
+    hiddenSlots.clear(); shown = new Set();
+    buildYears(); buildCats(); setMeta();
+    update();
+  }
+  function buildYears() {
+    var fy = $('from'), ty = $('to'), ys = M().years;
+    fy.replaceChildren(); ty.replaceChildren();
+    for (var y = ys[0]; y <= ys[1]; y++) { fy.append(h('option', { value: y, text: y })); ty.append(h('option', { value: y, text: y })); }
+  }
+  function setMeta() {
+    var meta = C.meta || {}, ys = M().years;
+    $('meta').textContent = ys[0] + '–' + ys[1] + ' seasons · data through ' + (meta.through || ys[1]) + ' · ' +
+      (S.mode === 'teams' ? T.teams.length + ' teams' : C.players.length.toLocaleString('en-US') + ' players');
   }
   function renderResults() {
     var q = $('q').value.trim();
@@ -237,21 +351,12 @@
       b.prepend(ic);
     });
     var fy = $('from'), ty = $('to');
-    for (var y = Y0; y <= Y1; y++) { fy.append(h('option', { value: y, text: y })); ty.append(h('option', { value: y, text: y })); }
+    buildYears();
     fy.addEventListener('change', function () { S.from = +fy.value; if (S.from > S.to) S.to = S.from; update(); });
     ty.addEventListener('change', function () { S.to = +ty.value; if (S.to < S.from) S.from = S.to; update(); });
-    var cc = $('cats');
-    cc.append(h('button', { type: 'button', class: 'chip auto', 'data-c': 'auto', text: 'Auto', onclick: function () { S.manual = false; update(); } }));
-    C.CATS.forEach(function (c) {
-      cc.append(h('button', {
-        type: 'button', class: 'chip', 'data-c': c.id, text: c.label.replace(' (rush + receive)', ''),
-        onclick: function () {
-          S.manual = true;
-          if (S.cats.has(c.id)) S.cats.delete(c.id); else S.cats.add(c.id);
-          syncControls(); renderView(aggs()); save();
-        }
-      }));
-    });
+    buildCats();
+    seg($('modesw'), T ? [['players', 'Players'], ['teams', 'Teams']] : [['players', 'Players']], function () { return S.mode; }, setMode, 'Compare players or teams');
+    if (T) buildTeamGrid();
     $('q').addEventListener('input', renderResults);
     $('q').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { var f = $('results').querySelector('button:not([disabled])'); if (f) f.click(); }
@@ -281,6 +386,21 @@
       syncTheme();
     });
   }
+  function buildCats() {
+    var cc = $('cats');
+    cc.replaceChildren();
+    cc.append(h('button', { type: 'button', class: 'chip auto', 'data-c': 'auto', text: 'Auto', onclick: function () { S.manual = false; update(); } }));
+    M().CATS.forEach(function (c) {
+      cc.append(h('button', {
+        type: 'button', class: 'chip', 'data-c': c.id, text: c.label.replace(' (rush + receive)', ''),
+        onclick: function () {
+          S.manual = true;
+          if (S.cats.has(c.id)) S.cats.delete(c.id); else S.cats.add(c.id);
+          syncControls(); renderView(aggs()); save();
+        }
+      }));
+    });
+  }
   function isDark() {
     var t = document.documentElement.getAttribute('data-theme');
     if (t) return t === 'dark';
@@ -289,6 +409,11 @@
   function syncTheme() { $('theme').textContent = isDark() ? 'Light mode' : 'Dark mode'; }
   var POOL = null;
   function randomMatchup() {
+    if (S.mode === 'teams') {
+      var all = T.teams.map(function (t, i) { return i; }), pick = [], k = 2 + Math.floor(Math.random() * 3);
+      while (pick.length < k) pick.push(all.splice(Math.floor(Math.random() * all.length), 1)[0]);
+      setPicks(pick); S.manual = false; S.example = false; update(); return;
+    }
     if (!POOL) {
       POOL = {};
       C.players.forEach(function (pl, i) {
@@ -304,7 +429,7 @@
     setPicks(ids); S.manual = false; S.example = false; update();
   }
   function syncControls() {
-    ['grpchips', 'stseg', 'pgseg', 'xseg', 'tabs'].forEach(function (id) { syncSeg($(id)); });
+    ['grpchips', 'stseg', 'pgseg', 'xseg', 'tabs', 'modesw'].forEach(function (id) { syncSeg($(id)); });
     $('from').value = S.from; $('to').value = S.to;
     Array.prototype.forEach.call($('cats').children, function (b) {
       var c = b.getAttribute('data-c');
@@ -321,8 +446,8 @@
     if (RO) { RO.disconnect(); RO = null; }
     var v = $('view');
     v.replaceChildren();
-    if (!A.length) { v.append(emptyMsg('Add at least one player to see stats. Pick a preset above or search by name.')); return; }
-    var cats = C.CATS.filter(function (c) { return S.cats.has(c.id); });
+    if (!A.length) { v.append(emptyMsg(S.mode === 'teams' ? 'Pick at least one team above to see stats.' : 'Add at least one player to see stats. Pick a preset above or search by name.')); return; }
+    var cats = M().CATS.filter(function (c) { return S.cats.has(c.id); });
     if (!cats.length) { v.append(emptyMsg('No stats to show for these players in this year range. Widen the years or turn on a stat group.')); return; }
     if (S.tab === 'compare') v.append(viewCompare(A, cats));
     else if (S.tab === 'trends') v.append(viewTrends(A, cats));
@@ -337,11 +462,11 @@
     var cols = A.length;
     var head = h('tr', null, h('th', { class: 'corner', scope: 'col' }, h('span', { class: 'sr', text: 'Stat' })));
     A.forEach(function (x, i) {
-      var pk = S.picks[i], pl = C.players[pk.p];
+      var pk = S.picks[i], partial = S.mode === 'players' && C.players[pk.p][7];
       head.append(h('th', { scope: 'col', class: 'ph k' + pk.slot },
-        h('div', { class: 'pnh' }, h('i', { class: 'sw' }), h('span', { text: pl[1] })),
-        h('div', { class: 'pm', text: pl[2] + ' · ' + spanText(x) }),
-        pl[7] ? h('div', { class: 'pill', text: 'Partial career' }) : null));
+        h('div', { class: 'pnh' }, h('i', { class: 'sw' }), h('span', { text: M().name(pk.p) })),
+        h('div', { class: 'pm', text: M().sub(pk.p, x) }),
+        partial ? h('div', { class: 'pill', text: 'Partial career' }) : null));
     });
     var tb = h('tbody');
     function group(label) { tb.append(h('tr', { class: 'g' }, h('th', { colspan: cols + 1, scope: 'colgroup', text: label }))); }
@@ -354,8 +479,8 @@
     line('Games', 'Games with at least one recorded stat', A.map(function (x, i) { return h('td', { class: 'k' + S.picks[i].slot, text: C.fmt({ fmt: 'int', kind: 'x' }, x.tot.g, false) }); }));
     line('Seasons', null, A.map(function (x, i) { return h('td', { class: 'k' + S.picks[i].slot, text: String(x.tot.n) }); }));
     line('Years', null, A.map(function (x, i) { return h('td', { class: 'k' + S.picks[i].slot, text: spanText(x) }); }));
-    var HN = S.picks.map(function (pk) { return C.honors(pk.p); });
-    var hrows = C.honorRows.map(function (row) {
+    var HN = S.mode === 'players' ? S.picks.map(function (pk) { return C.honors(pk.p); }) : [];
+    var hrows = (HN.length ? C.honorRows : []).map(function (row) {
       var cells = HN.map(function (hn) { return C.honorCell(row, hn); });
       return { row: row, cells: cells, show: cells.some(function (c) { return c.v > 0; }) };
     }).filter(function (x) { return x.show; });
@@ -405,14 +530,14 @@
       requestAnimationFrame(function () { requestAnimationFrame(function () { fill.style.width = (wins[i] / contested * 100) + '%'; }); });
       return h('div', { class: 'sc k' + pk.slot + (lead ? ' top' : '') },
         lead ? h('span', { class: 'crown', text: 'Leader' }) : null,
-        h('div', { class: 'n', text: C.players[pk.p][1] }),
+        h('div', { class: 'n', text: M().name(pk.p) }),
         h('div', null, h('span', { class: 'big', text: String(wins[i]) }), h('span', { class: 'of', text: ' of ' + contested + ' stats led' })),
         h('div', { class: 'trk', 'aria-hidden': 'true' }, fill));
     });
     return h('section', { class: 'score', 'aria-label': 'Head-to-head: stats led by each player' }, cards);
   }
   function partialNote(A) {
-    var any = S.picks.some(function (pk) { return C.players[pk.p][7]; });
+    var any = S.mode === 'players' && S.picks.some(function (pk) { return C.players[pk.p][7]; });
     return any ? h('p', { class: 'note', text: 'Partial career: this player was active before 1999, so totals here cover 1999 onward only.' }) : null;
   }
 
@@ -452,7 +577,7 @@
     function draw() {
       if (RO) { RO.disconnect(); RO = null; }
       body.replaceChildren();
-      var d = C.DEFS[S.metric];
+      var d = M().DEFS[S.metric];
       var series = A.map(function (x, i) {
         var pts = [];
         x.seasons.forEach(function (s, k) {
@@ -460,10 +585,10 @@
           if (r.v == null || r.small) return;
           pts.push({ x: S.xmode === 'cal' ? s.season : k + 1, y: r.v, season: s.season, team: s.teams.join('/') });
         });
-        return { slot: S.picks[i].slot, name: C.players[S.picks[i].p][1], pts: pts };
+        return { slot: S.picks[i].slot, name: M().name(S.picks[i].p), pts: pts };
       });
       var visible = series.filter(function (s) { return !hiddenSlots.has(s.slot); });
-      var unit = (S.pg && d.kind === 'sum') ? 'per game' : d.kind === 'sum' ? 'season totals' : d.kind === 'max' ? 'season best' : 'by season';
+      var unit = (S.pg && d.kind === 'sum') ? 'per game' : d.kind === 'sum' || d.kind === 'cnt' ? 'season totals' : d.kind === 'max' ? 'season best' : 'by season';
       var wrap = h('div', { class: 'chartwrap', tabindex: '0', role: 'group', 'aria-label': d.label + ' by season. Use left and right arrow keys to read values.' });
       var box = h('div', { class: 'chartbox' },
         h('div', { class: 'ct' },
@@ -531,7 +656,7 @@
     var lo = Math.min.apply(null, all.map(function (p) { return p.y; }));
     var hi = Math.max.apply(null, all.map(function (p) { return p.y; }));
     var ymin = lo, ymax = hi;
-    if (d.kind === 'sum') { ymin = Math.min(0, lo); if (ymax <= 0) ymax = 1; }
+    if (d.kind === 'sum' || d.kind === 'cnt') { ymin = Math.min(0, lo); if (ymax <= 0) ymax = 1; }
     else {
       var pad = (hi - lo) * 0.12 || Math.abs(hi) * 0.1 || 1;
       ymin = lo - pad; ymax = hi + pad;
@@ -627,8 +752,7 @@
     var body = h('div');
     var selrow = h('div', { class: 'seg', role: 'group', 'aria-label': 'Player' });
     S.picks.forEach(function (pk) {
-      var pl = C.players[pk.p];
-      var b = h('button', { type: 'button', class: 'k' + pk.slot, 'data-p': pk.p }, h('i', { class: 'sw' }), pl[1]);
+      var b = h('button', { type: 'button', class: 'k' + pk.slot, 'data-p': pk.p }, h('i', { class: 'sw' }), M().name(pk.p));
       b.addEventListener('click', function () { S.logp = pk.p; sync(); draw(); });
       selrow.append(b);
     });
@@ -639,9 +763,9 @@
       body.replaceChildren();
       var i = S.picks.findIndex(function (p) { return p.p === S.logp; });
       var x = A[i], slot = S.picks[i].slot;
-      var use = S.manual ? cats : C.CATS.filter(function (c) { return C.autoCats([x.tot], [C.players[S.logp][3]]).has(c.id); });
+      var use = S.manual || S.mode === 'teams' ? cats : C.CATS.filter(function (c) { return C.autoCats([x.tot], [C.players[S.logp][3]]).has(c.id); });
       if (!use.length) { body.append(emptyMsg('No stats for this player in the selected years.')); return; }
-      var hasH = x.seasons.some(function (s) { return C.seasonHonors(S.logp, s.season).length > 0; });
+      var hasH = x.seasons.some(function (s) { return M().seasonHonors(S.logp, s.season).length > 0; });
       var h1 = h('tr', null, h('th', { colspan: 3, class: 'gh', text: 'Season' }));
       var h2 = h('tr', null, h('th', { scope: 'col', class: 'l', text: 'Year' }), h('th', { scope: 'col', class: 'l', text: 'Team' }), h('th', { scope: 'col', text: 'G' }));
       var cols = [];
@@ -650,7 +774,7 @@
         h1.append(h('th', { colspan: ds.length, class: 'gh', text: c.label.replace(' (rush + receive)', '') }));
         ds.forEach(function (d) { h2.append(h('th', { scope: 'col', title: d.tip || d.label, text: shortLabel(d) })); cols.push(d); });
       });
-      if (hasH) { h1.append(h('th', { colspan: 1, class: 'gh', text: 'Honors' })); h2.append(h('th', { scope: 'col', class: 'l', text: 'Awards and Super Bowls' })); }
+      if (hasH) { h1.append(h('th', { colspan: 1, class: 'gh', text: S.mode === 'teams' ? 'Postseason' : 'Honors' })); h2.append(h('th', { scope: 'col', class: 'l', text: S.mode === 'teams' ? 'Result' : 'Awards and Super Bowls' })); }
       var best = cols.map(function (d) {
         var cells = x.seasons.map(function (s) { return C.value(d, s, S.pg, true); });
         var vals = cells.filter(function (c) { return c.v != null && !c.small; }).map(function (c) { return c.v; });
@@ -666,7 +790,7 @@
           var isBest = best[k] != null && r.v != null && !r.small && Math.abs(r.v - best[k]) < 1e-9;
           tr.append(h('td', { class: (isBest ? 'lead ' : '') + (r.small ? 'small' : ''), text: C.fmt(d, r.v, S.pg) }));
         });
-        if (hasH) tr.append(h('td', { class: 'l', text: C.seasonHonors(S.logp, s.season).join(', ') }));
+        if (hasH) tr.append(h('td', { class: 'l', text: M().seasonHonors(S.logp, s.season).join(', ') }));
         tb.append(tr);
       });
       var tf = h('tr', { class: 'tot' }, h('th', { scope: 'row', class: 'l', text: 'Total' }), h('td', { class: 'l', text: teamsText(x) }), h('td', { text: String(x.tot.g) }));
@@ -674,7 +798,7 @@
       if (hasH) tf.append(h('td', { class: 'l', text: '' }));
       var t = h('table', { class: 'cmp log k' + slot }, h('caption', { class: 'sr', text: 'Season by season stats' }), h('thead', null, h1, h2), tb, h('tfoot', null, tf));
       body.append(h('p', { class: 'hint', text: STLABEL[S.st] + ', ' + S.from + '–' + S.to + (S.pg ? ', per game' : ', totals') + '. Shaded cell = best season in that column.' }),
-        pgNote(), h('div', { class: 'tablewrap' }, t));
+        pgNote() || '', h('div', { class: 'tablewrap' }, t));
     }
     sync(); draw();
     return h('div', null, selrow, body);
@@ -689,22 +813,27 @@
   // ---------- init ----------
   function init() {
     try { var th = localStorage.getItem(KEY + '.theme'); if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); } catch (e) { /* storage unavailable */ }
-    var meta = C.meta || {};
-    $('meta').textContent = Y0 + '–' + Y1 + ' seasons · data through ' + (meta.through || Y1) + ' · ' + C.players.length.toLocaleString('en-US') + ' players';
     buildControls();
     syncTheme();
-    var saved = load();
-    var ids = [];
-    if (saved && Array.isArray(saved.ids)) {
-      saved.ids.forEach(function (id) { if (C.byId.has(id)) ids.push(C.byId.get(id)); });
-      if (['REG', 'POST', 'ALL'].indexOf(saved.st) >= 0) S.st = saved.st;
-      if (typeof saved.pg === 'boolean') S.pg = saved.pg;
-      if (['compare', 'trends', 'log'].indexOf(saved.tab) >= 0) S.tab = saved.tab;
-      if (saved.xmode === 'cal' || saved.xmode === 'car') S.xmode = saved.xmode;
-      if (+saved.from >= Y0 && +saved.to <= Y1 && +saved.from <= +saved.to) { S.from = +saved.from; S.to = +saved.to; }
-    }
-    if (ids.length) { setPicks(ids); }
+    var saved = load() || {};
+    function inYears(ys) { return +saved.from >= ys[0] && +saved.to <= ys[1] && +saved.from <= +saved.to; }
+    if (['REG', 'POST', 'ALL'].indexOf(saved.st) >= 0) S.st = saved.st;
+    if (typeof saved.pg === 'boolean') S.pg = saved.pg;
+    if (['compare', 'trends', 'log'].indexOf(saved.tab) >= 0) S.tab = saved.tab;
+    if (saved.xmode === 'cal' || saved.xmode === 'car') S.xmode = saved.xmode;
+    var ids = [], tids = [];
+    (saved.ids || []).forEach(function (id) { if (C.byId.has(id)) ids.push(C.byId.get(id)); });
+    if (T) (saved.tids || []).forEach(function (a) { if (T.byAbbr.has(a)) tids.push(T.byAbbr.get(a)); });
+    if (ids.length) setPicks(ids);
     else if (PRESETS.length) { setPicks(PRESETS[0].ids); S.example = true; }
+    if (saved.mode !== 'teams' && inYears(C.years)) { S.from = +saved.from; S.to = +saved.to; }
+    if (T && tids.length) {
+      // park the saved team picks so the Teams switch restores them
+      STORE.teams = { picks: tids.slice(0, MAXP).map(function (p, i) { return { p: p, slot: i }; }), from: T.years[0], to: T.years[1], cats: new Set(), manual: false, metric: null, logp: null, example: false };
+      if (saved.mode === 'teams' && inYears(T.years)) { STORE.teams.from = +saved.from; STORE.teams.to = +saved.to; }
+    }
+    if (T && saved.mode === 'teams') { setMode('teams'); return; }
+    buildYears(); setMeta();
     update();
   }
   init();

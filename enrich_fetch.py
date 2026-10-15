@@ -12,3 +12,6 @@ print("draft_picks max season:", dp["season"].max())
 for nm in ["Peyton Manning","Patrick Mahomes","Aaron Donald","Tom Brady","Larry Fitzgerald","Calvin Johnson"]:
     r = dp.filter(pl.col("pfr_player_name") == nm).select("season","pfr_player_name","probowls","allpro","hof","to")
     print(r)
+# team pages: per-game team stats (offense and defense) and team names/colors
+nfl.load_team_stats(seasons=list(range(2000, nfl.get_current_season() + 1)), summary_level="week").write_csv(out + "/team_week.csv")
+nfl.load_teams().write_csv(out + "/teams.csv")
