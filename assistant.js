@@ -216,7 +216,7 @@
   var GROUPNAME = { QB: 'quarterback', RB: 'running back', WR: 'wide receiver', TE: 'tight end', K: 'kicker', P: 'punter', DEF: 'defensive player' };
   var MAIN = { QB: ['pyd', 'ptd', 'int', 'rate'], RB: ['ryd', 'rtd', 'ypc', 'cyd'], WR: ['rec', 'cyd', 'ctd'], TE: ['rec', 'cyd', 'ctd'], DEF: ['tkl', 'dsk', 'dint', 'ff'], K: ['fgm', 'fgp', 'fgl'], P: ['pnt', 'pavg'] };
 
-  var AWARDS = [[/super ?bowl mvps?/, ['sbmvp']], [/\bmvps?\b|most valuable/, ['mvp']], [/offensive player of the year|\bopoy\b/, ['opoy']],
+  var AWARDS = [[/super ?bowl.*\b(mvps?|most valuable)\b|\b(mvps?|most valuable player)\b.*super ?bowl/, ['sbmvp']], [/\bmvps?\b|most valuable/, ['mvp']], [/offensive player of the year|\bopoy\b/, ['opoy']],
     [/defensive player of the year|\bdpoy\b/, ['dpoy']], [/offensive rookie of the year|\boroy\b/, ['oroy']], [/defensive rookie of the year|\bdroy\b/, ['droy']],
     [/rookie of the year/, ['oroy', 'droy']], [/comeback player|\bcpoy\b|comeback of the year/, ['cpoy']], [/walter payton|man of the year/, ['wpmoy']]];
   var AWLABEL = {};
@@ -419,8 +419,16 @@
     if (y && y.single) {
       var ws = winners.filter(function (w) { return w.s === y.from; });
       if (!ws.length) return { say: 'I do not have a ' + label + ' winner for ' + y.from + ' yet.' };
-      return { say: 'The ' + y.from + ' ' + label + (ws.length > 1 ? ' winners were ' : ' was ') + plist(ws.map(function (w) { return pname(w.p) + (codes.length > 1 ? ' (' + AWLABEL[w.c] + ')' : '') + ' (' + C.players[w.p][2] + ')'; })) + '.',
-        show: { mode: 'players', ids: ws.map(function (w) { return w.p; }).slice(0, 4) } };
+      var sbNote = '';
+      if (codes[0] === 'sbmvp') {
+        // NFL seasons are named for the year they start; the Super Bowl is played the following February
+        var prev = winners.filter(function (w) { return w.s === y.from - 1; });
+        if (prev.length && !y.sbn) sbNote = ' If you meant the Super Bowl played in February ' + y.from + ', for the ' + (y.from - 1) + ' season, the MVP was ' + plist(prev.map(function (w) { return pname(w.p); })) + '.';
+      }
+      var who = plist(ws.map(function (w) { return pname(w.p) + (codes.length > 1 ? ' (' + AWLABEL[w.c] + ')' : '') + ' (' + C.players[w.p][2] + ')'; }));
+      var head = codes[0] === 'sbmvp' ? (y.sbn ? 'The MVP of Super Bowl ' + y.sbn + ' was ' : 'The Super Bowl MVP for the ' + y.from + ' season, in the game played in February ' + (y.from + 1) + ', was ') + who + '.'
+        : 'The ' + y.from + ' ' + label + (ws.length > 1 ? ' winners were ' : ' was ') + who + '.';
+      return { say: head + sbNote, show: { mode: 'players', ids: ws.map(function (w) { return w.p; }).slice(0, 4) } };
     }
     var inR = winners.filter(function (w) { return !y || (w.s >= y.from && w.s <= y.to); });
     if (/\bmost\b|how many times|who has won/.test(lastQ)) {
@@ -617,7 +625,28 @@
   };
 
   var lastQ = '';
+  // Speech recognition writes things like "M.V.P.", "two thousand nine" or "'09"; turn them into what the parser expects
+  var NUMW = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+    fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  function twoDigit(str) {
+    var w = str.trim().split(/[\s-]+/), n = 0;
+    for (var i = 0; i < w.length; i++) { if (NUMW[w[i]] == null) return null; n += NUMW[w[i]]; }
+    return n < 100 ? n : null;
+  }
+  var NW = '(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)';
+  var NW2 = NW + '(?:[\\s-]+' + NW + ')?';
+  function normalizeSpoken(q) {
+    var t = q.replace(/\bm\s*\.?\s*v\s*\.?\s*p\.?(s)?(?=\W|$)/gi, 'MVP$1').replace(/\bt\s*\.\s*d\s*\.?/gi, 'TD');
+    t = t.replace(new RegExp('\\btwo thousand(?: and)?(?: (' + NW2 + '))?\\b', 'gi'), function (m, rest) { var n = rest ? twoDigit(rest.toLowerCase()) : 0; return n != null && n < 100 ? String(2000 + n) : m; });
+    t = t.replace(new RegExp('\\b(nineteen|twenty) (' + NW2 + ')\\b', 'gi'), function (m, a, b) { var n = twoDigit(b.toLowerCase()); if (n == null || n < 10) return m; var y = (a.toLowerCase() === 'nineteen' ? 1900 : 2000) + n; return y >= 1990 && y <= 2040 ? String(y) : m; });
+    t = t.replace(new RegExp('\\b(?:twenty|nineteen) oh (' + NW + ')\\b', 'gi'), function (m, b) { var n = NUMW[b.toLowerCase()]; return n < 10 ? String((/^nineteen/i.test(m) ? 1900 : 2000) + n) : m; });
+    // '09, in 09, the 09 season
+    t = t.replace(/(^|[\s(])['’‘](\d{2})\b/g, function (m, a, d) { return a + String((+d > 40 ? 1900 : 2000) + +d); });
+    t = t.replace(/\b(in|of|the|for|during|from|since|to|season) (\d{2})\b(?! (?:yards|points|games|times|tds|touchdowns|sacks|catches|carries))/gi, function (m, w, d) { return w + ' ' + ((+d > 40 ? 1900 : 2000) + +d); });
+    return t;
+  }
   function answer(q) {
+    q = normalizeSpoken(String(q));
     var raw = q;
     var t = ' ' + q.toLowerCase().replace(/[’']s\b/g, '').replace(/[’'"?!.,;:()]/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
     t = t.trim();
@@ -755,17 +784,32 @@
   // the old Spanish-accent default is gone; drop a saved Spanish voice
   if (prefs.voice && prefs.voice !== 'mix' && /spanish|español|espanol/i.test(prefs.voice)) prefs.voice = null;
   function savePrefs() { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { /* storage unavailable */ } }
-  function english() { return voices.filter(function (v) { return /^en/i.test(v.lang); }); }
+  // Neural voices sound close to a person; older desktop voices and Apple's novelty voices sound robotic
+  var NOVELTY = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|kathy|ralph|deranged|hysterical|pipe organ|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b|espeak|festival/i;
+  function quality(v) {
+    var n = v.name;
+    if (/online \(natural\)|neural|premium/i.test(n)) return 3;
+    if (/enhanced|siri|^google /i.test(n) || /google/i.test(n) && !v.localService) return 2;
+    if (/^microsoft (david|zira|mark|hazel|george|susan|heera|ravi)\b/i.test(n)) return 0;
+    return 1;
+  }
+  function english() {
+    return voices.filter(function (v) { return /^en/i.test(v.lang) && !NOVELTY.test(v.name); })
+      .sort(function (a, b) { return quality(b) - quality(a); });
+  }
+  function natural() { var en = english(), best = en.length ? quality(en[0]) : 0; return en.filter(function (v) { return quality(v) >= Math.min(best, 2); }); }
   function loadVoices() { voices = synth ? synth.getVoices() : []; fillVoiceMenu(); }
   function autoVoice() {
-    var us = voices.filter(function (v) { return /^en[-_]US/i.test(v.lang); });
-    for (var i = 0; i < BEST_US.length; i++) { var v = us.filter(function (x) { return BEST_US[i].test(x.name); })[0]; if (v) return v; }
+    var us = english().filter(function (v) { return /^en[-_]US/i.test(v.lang); });
+    var top = us.length ? quality(us[0]) : -1;
+    for (var i = 0; i < BEST_US.length; i++) { var v = us.filter(function (x) { return BEST_US[i].test(x.name) && quality(x) === top; })[0]; if (v) return v; }
     return us[0] || english()[0] || voices[0] || null;
   }
   // "Mix it up": a different voice for each answer, rotating through regions so the accents change too
   var lastMix = null;
   function mixVoice() {
-    var en = english();
+    // only rotate through the best-sounding voices on the device
+    var en = natural();
     if (en.length < 2) return autoVoice();
     var byRegion = {};
     en.forEach(function (v) { (byRegion[region(v)] = byRegion[region(v)] || []).push(v); });
@@ -781,8 +825,33 @@
     if (prefs.voice) { var v = voices.filter(function (x) { return x.name === prefs.voice; })[0]; if (v) return v; }
     return autoVoice();
   }
+  // Natural AI voice (naturalvoice.js): Kokoro running in the browser. Off until the visitor turns it on.
+  var NV = window.NaturalVoice && window.NaturalVoice.supported() ? window.NaturalVoice : null;
+  if (!prefs.nvoice) prefs.nvoice = 'af_heart';
+  function useNatural() { return NV && prefs.natural && NV.state === 'ready'; }
+  var lastNV = null;
+  function nvPick() {
+    if (prefs.nvoice === 'mix') {
+      var list = NV.voices.filter(function (v) { return v !== lastNV; });
+      lastNV = list[Math.floor(Math.random() * list.length)];
+      return lastNV;
+    }
+    return NV.voices.filter(function (v) { return v.id === prefs.nvoice; })[0] || NV.voices[0];
+  }
+  function stopAll() { if (synth) synth.cancel(); if (NV) NV.stop(); if (root) root.classList.remove('talking'); }
   function speak(text, voice) {
-    if (!synth || prefs.muted) return null;
+    if (prefs.muted) return null;
+    if (useNatural() && !voice) {
+      if (synth) synth.cancel();
+      var nv = nvPick();
+      NV.speak(speakable(text).split(/(?<=[.!?])\s+/), nv.id).catch(function () { deviceSpeak(text); });
+      return { nv: nv };
+    }
+    return deviceSpeak(text, voice);
+  }
+  function deviceSpeak(text, voice) {
+    if (!synth) return null;
+    if (NV) NV.stop();
     synth.cancel();
     // one utterance per sentence: Chrome stops long utterances after about 15 seconds
     var parts = speakable(text).split(/(?<=[.!?])\s+/).filter(Boolean), v = voice || currentVoice();
@@ -803,14 +872,29 @@
   function fillVoiceMenu() {
     if (!voiceSel) return;
     voiceSel.replaceChildren();
+    if (NV && prefs.natural) {
+      voiceSel.append(h('option', { value: 'mix', text: 'Mix it up: a different voice each answer' }));
+      ['American', 'British'].forEach(function (acc) {
+        voiceSel.append(h('optgroup', { label: acc + ' English · natural AI voices' }, NV.voices.filter(function (v) { return v.accent === acc; }).map(function (v) {
+          return h('option', { value: v.id, text: v.name + ' (' + v.gender + (v.note ? ', ' + v.note : '') + ')' });
+        })));
+      });
+      voiceSel.value = prefs.nvoice;
+      var tip0 = root && root.querySelector('.lvtip');
+      if (tip0) tip0.hidden = true;
+      return;
+    }
     var auto = autoVoice(), en = english();
     voiceSel.append(h('option', { value: '', text: 'Best American voice' + (auto ? ' (' + shortVoice(auto) + ')' : '') }));
-    if (en.length > 1) voiceSel.append(h('option', { value: 'mix', text: 'Mix it up: a different voice each answer' }));
+    if (natural().length > 1) voiceSel.append(h('option', { value: 'mix', text: 'Mix it up: a different voice each answer' }));
     var groups = {};
     en.forEach(function (v) { (groups[region(v)] = groups[region(v)] || []).push(v); });
     Object.keys(groups).sort(function (a, b) { return a === 'American' ? -1 : b === 'American' ? 1 : a.localeCompare(b); }).forEach(function (r) {
-      voiceSel.append(h('optgroup', { label: r + ' English' }, groups[r].map(function (v) { return h('option', { value: v.name, text: shortVoice(v) + ' (' + r + ')' }); })));
+      voiceSel.append(h('optgroup', { label: r + ' English' }, groups[r].map(function (v) { return h('option', { value: v.name, text: shortVoice(v) + (quality(v) >= 3 ? ' ★ natural' : quality(v) === 2 ? ' · good' : '') }); })));
     });
+    // devices with only older voices get a pointer to the free natural ones
+    var tip = root && root.querySelector('.lvtip');
+    if (tip) tip.hidden = !(en.length && quality(en[0]) < 3);
     voiceSel.value = prefs.voice === 'mix' && en.length > 1 ? 'mix' : prefs.voice && voices.some(function (v) { return v.name === prefs.voice; }) ? prefs.voice : '';
   }
   function scroll() { log.scrollTop = log.scrollHeight; }
@@ -852,18 +936,43 @@
   }
   function voiceTag(v) {
     var last = log.querySelector('.lm.bot:last-child .bub');
-    if (last) last.append(h('span', { class: 'lvtag', text: 'Voice: ' + shortVoice(v) + ', ' + region(v) + ' English' }));
+    if (last) last.append(h('span', { class: 'lvtag', text: v.nv ? 'Voice: ' + v.nv.name + ', ' + v.nv.accent + ' English (natural AI voice)' : 'Voice: ' + shortVoice(v) + ', ' + region(v) + ' English' }));
+  }
+  var nvBtn, nvStatus;
+  function syncNV() {
+    if (!nvBtn) return;
+    nvBtn.setAttribute('aria-pressed', String(!!prefs.natural));
+    nvBtn.textContent = prefs.natural ? (NV.state === 'loading' ? '\u2728 Natural voice: loading…' : '\u2728 Natural voice: on') : '\u2728 Natural voice: off';
+    fillVoiceMenu();
+  }
+  function startNatural(announce) {
+    if (!NV) return;
+    nvStatus.hidden = false;
+    nvStatus.textContent = 'Getting the natural voice ready. The first time it downloads about 90 MB, then it is saved on this device.';
+    syncNV();
+    NV.load().then(function () {
+      nvStatus.textContent = 'Natural voice ready.';
+      setTimeout(function () { nvStatus.hidden = true; }, 2500);
+      syncNV();
+      if (announce) { var v = speak('Hi! This is my natural voice. Ask me anything.'); if (v) voiceTag(v); }
+    }, function (err) {
+      prefs.natural = false; savePrefs(); syncNV();
+      nvStatus.hidden = true;
+      addBot({ say: 'Sorry, the natural voice couldn\'t load on this device, so I\'ll keep using your device\'s voice.', note: err && err.message ? 'Details: ' + err.message : '' });
+    });
   }
   function open() {
     root.classList.add('open');
     $fab.setAttribute('aria-expanded', 'true');
     if (!log.children.length) {
       var hi = { say: 'Hey! I\'m Luna, your NFL stats guide. Ask me about any player, team or game since 1999: leaders, records, scores, betting lines, injuries and this week\'s games. Type or tap the microphone.', examples: [HELP.examples[0], HELP.examples[6], HELP.examples[7], HELP.examples[9], HELP.examples[10]] };
-      addBot(hi); speak(hi.say);
+      addBot(hi);
+      if (!(NV && prefs.natural && NV.state !== 'ready')) speak(hi.say);
     }
+    if (NV && prefs.natural && NV.state === 'off') startNatural(false);
     setTimeout(function () { input.focus(); }, 50);
   }
-  function close() { root.classList.remove('open'); $fab.setAttribute('aria-expanded', 'false'); if (synth) synth.cancel(); $fab.focus(); }
+  function close() { root.classList.remove('open'); $fab.setAttribute('aria-expanded', 'false'); stopAll(); $fab.focus(); }
 
   var $fab;
   function build() {
@@ -877,7 +986,7 @@
       micBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
       micBtn.addEventListener('click', function () {
         if (rec) { rec.stop(); return; }
-        if (synth) synth.cancel();
+        stopAll();
         rec = new SR(); rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
         root.classList.add('listening');
         rec.onresult = function (e) {
@@ -892,9 +1001,27 @@
     }
     var form = h('form', { class: 'lform', onsubmit: function (e) { e.preventDefault(); var q = input.value; input.value = ''; ask(q); } },
       input, micBtn, h('button', { type: 'submit', class: 'lsend', 'aria-label': 'Send', text: '➤' }));
-    voiceSel = h('select', { 'aria-label': 'Luna\'s voice', class: 'lvoice', onchange: function () { prefs.voice = voiceSel.value || null; savePrefs(); var v = speak('Hi! This is how I sound now.'); if (v && prefs.voice !== 'mix') voiceTag(v); } });
+    voiceSel = h('select', { 'aria-label': 'Luna\'s voice', class: 'lvoice', onchange: function () {
+      if (NV && prefs.natural) prefs.nvoice = voiceSel.value || 'af_heart'; else prefs.voice = voiceSel.value || null;
+      savePrefs();
+      if (NV && prefs.natural && NV.state !== 'ready') return;
+      var v = speak('Hi! This is how I sound now.'); if (v) voiceTag(v);
+    } });
+    if (NV) {
+      NV.unlock = NV.unlock || function () {};
+      nvBtn = h('button', { type: 'button', class: 'lnvb', 'aria-pressed': 'false', title: 'A free AI voice that sounds like a real person. Runs on your device.',
+        onclick: function () {
+          NV.unlock();
+          prefs.natural = !prefs.natural; savePrefs();
+          if (prefs.natural) startNatural(true); else { stopAll(); syncNV(); }
+        } });
+      nvStatus = h('p', { class: 'lnvs', hidden: true, role: 'status' });
+      NV.on('progress', function (p) { if (p.total) nvStatus.textContent = 'Downloading the natural voice: ' + Math.round(p.loaded / p.total * 100) + '% of ' + Math.round(p.total / 1048576) + ' MB (one time only)…'; });
+      NV.on('start', function () { root.classList.add('talking'); });
+      NV.on('end', function () { root.classList.remove('talking'); });
+    }
     muteBtn = h('button', { type: 'button', class: 'lmute', 'aria-pressed': String(prefs.muted), title: 'Turn voice on or off',
-      onclick: function () { prefs.muted = !prefs.muted; savePrefs(); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.textContent = prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on'; if (prefs.muted && synth) synth.cancel(); } },
+      onclick: function () { prefs.muted = !prefs.muted; savePrefs(); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.textContent = prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on'; if (prefs.muted) stopAll(); } },
       prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on');
     log = h('div', { class: 'llog', role: 'log', 'aria-live': 'polite' });
     var panel = h('div', { class: 'lpanel', id: 'luna', role: 'dialog', 'aria-label': 'Luna, NFL stats assistant' },
@@ -902,12 +1029,16 @@
         h('div', { class: 'av lav big', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
         h('div', { class: 'lht' }, h('b', { text: 'Luna' }), h('span', { text: 'NFL stats guide · answers from this site\'s data' })),
         h('button', { type: 'button', class: 'lx', 'aria-label': 'Close', text: '×', onclick: close })),
-      h('div', { class: 'lbar' }, muteBtn, synth ? voiceSel : null),
+      h('div', { class: 'lbar' }, muteBtn, synth || NV ? voiceSel : null),
+      NV ? h('div', { class: 'lbar lbar2' }, nvBtn) : null,
+      nvStatus || null,
+      h('p', { class: 'lvtip', hidden: true }, (NV ? 'Want a voice that sounds like a real person? Turn on Natural voice above. ' : 'Want a more natural voice? ') + 'Microsoft Edge also has free Natural voices, and on iPhone, iPad or Mac you can download a Premium voice in Settings › Accessibility › Spoken Content › Voices › English.'),
       log, form);
     root = h('div', { class: 'luna' }, panel, $fab);
     document.body.append(root);
     panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     if (synth) { loadVoices(); if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', loadVoices); else synth.onvoiceschanged = loadVoices; }
+    if (NV) syncNV();
   }
   build();
   window.Luna = { answer: answer, speakable: speakable, ask: ask };
