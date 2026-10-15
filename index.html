@@ -306,6 +306,60 @@ svg.chart text { font-family: var(--font-ui); }
 .foot h2 { margin: 0 0 6px; font-family: var(--font-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
 .foot ul { margin: 0; padding-left: 18px; max-width: 80ch; display: flex; flex-direction: column; gap: 4px; }
 .foot a { color: var(--ink); }
+.luna { --l1: #e63e8b; --l2: #ff8a3d; --l3: #7b3fe4; }
+.lfab { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px 8px 8px; border: 0; border-radius: 999px; font: inherit; font-weight: 700; font-size: 15px; color: #fff; cursor: pointer; background: linear-gradient(120deg, var(--l3), var(--l1) 55%, var(--l2)); box-shadow: 0 10px 28px -8px rgba(230, 62, 139, 0.6); transition: transform 0.2s, box-shadow 0.2s; }
+.lfab:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 14px 32px -8px rgba(230, 62, 139, 0.75); }
+.luna.open .lfab { opacity: 0; pointer-events: none; transform: scale(0.8); }
+.lav { position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffd2a8, #ff8a3d 40%, #e63e8b 75%, #7b3fe4); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.55); }
+.lav::after { content: ""; position: absolute; inset: 30% 26% 34%; border-radius: 0 0 50% 50% / 0 0 100% 100%; border-bottom: 2.5px solid rgba(255,255,255,0.95); }
+.lav.big { width: 48px; height: 48px; }
+.lav.big i { position: absolute; bottom: -6px; width: 4px; height: 8px; border-radius: 2px; background: var(--l2); opacity: 0; }
+.lav.big i:nth-child(1) { left: 12px; } .lav.big i:nth-child(2) { left: 22px; background: var(--l1); } .lav.big i:nth-child(3) { left: 32px; background: var(--l3); }
+.luna.talking .lav.big i { opacity: 1; animation: eq 0.6s ease-in-out infinite alternate; }
+.luna.talking .lav.big i:nth-child(2) { animation-delay: 0.2s; } .luna.talking .lav.big i:nth-child(3) { animation-delay: 0.4s; }
+.luna.talking .lav.big { animation: glow 1.2s ease-in-out infinite alternate; }
+@keyframes eq { from { height: 4px; } to { height: 14px; } }
+@keyframes glow { from { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.55), 0 0 0 0 rgba(230,62,139,0.5); } to { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.55), 0 0 0 8px rgba(230,62,139,0); } }
+.lpanel { position: fixed; right: 16px; bottom: 16px; z-index: 51; width: min(400px, calc(100vw - 32px)); height: min(620px, calc(100vh - 32px)); display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 24px 60px -16px rgba(0,0,0,0.45); opacity: 0; transform: translateY(16px) scale(0.97); transform-origin: bottom right; pointer-events: none; visibility: hidden; transition: opacity 0.22s, transform 0.22s, visibility 0s 0.22s; }
+.luna.open .lpanel { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition: opacity 0.22s, transform 0.22s; }
+.lhead { display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px; color: #fff; background: linear-gradient(120deg, var(--l3), var(--l1) 60%, var(--l2)); }
+.lht { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.lht b { font-family: var(--font-label); font-size: 24px; letter-spacing: 0.04em; line-height: 1; }
+.lht span { font-size: 12px; opacity: 0.9; }
+.lx { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,0.18); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
+.lx:hover { background: rgba(255,255,255,0.32); }
+.lbar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--tint); }
+.lmute { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border: 1px solid var(--axis); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.lvoice { flex: 1; min-width: 0; font-size: 12px; padding: 4px 6px; }
+.llog { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 12px; overscroll-behavior: contain; }
+.lm { display: flex; gap: 8px; align-items: flex-end; animation: fadein 0.25s ease; }
+.lm.me { justify-content: flex-end; }
+.lm .lav { width: 28px; height: 28px; }
+.bub { max-width: 86%; padding: 10px 12px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
+.bub p { margin: 0; }
+.lm.me .bub { background: linear-gradient(120deg, var(--l3), var(--l1)); color: #fff; border-bottom-right-radius: 4px; }
+.lm.bot .bub { background: var(--tint); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 4px; display: flex; flex-direction: column; gap: 8px; }
+.lt { font-family: var(--font-label); font-weight: 600; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink2); }
+.lrank { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-variant-numeric: tabular-nums; }
+.lrank li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; padding: 4px 8px; border-radius: 6px; background: var(--surface); }
+.lrank li:first-child { background: color-mix(in srgb, var(--l1) 14%, var(--surface)); }
+.lrank .rk { color: var(--ink2); font-size: 12px; min-width: 18px; }
+.lrank .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lnote { font-size: 12px; color: var(--ink2); }
+.lacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.lact { font: inherit; font-size: 12px; font-weight: 700; padding: 5px 11px; border: 0; border-radius: 999px; background: var(--l1); color: #fff; cursor: pointer; }
+.lact:hover { filter: brightness(1.1); }
+.lact.ghost { background: transparent; color: var(--ink2); border: 1px solid var(--axis); font-weight: 600; }
+.lex { display: flex; flex-wrap: wrap; gap: 6px; }
+.lex .chip { --cc: var(--l1); font-size: 12px; text-align: left; background: var(--surface); }
+.lform { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--line); background: var(--surface); }
+.lform input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid var(--axis); border-radius: 999px; background: var(--bg); color: var(--ink); }
+.lform input:focus { outline: none; border-color: var(--l1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--l1) 25%, transparent); }
+.lmic, .lsend { flex: none; width: 42px; height: 42px; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center; font-size: 17px; color: #fff; background: linear-gradient(135deg, var(--l3), var(--l1)); }
+.lmic { background: var(--tint); color: var(--ink); border: 1px solid var(--axis); }
+.lmic svg { width: 20px; height: 20px; }
+.luna.listening .lmic { background: var(--l1); color: #fff; border-color: var(--l1); animation: glow 1s ease-in-out infinite alternate; }
+@media (max-width: 520px) { .lpanel { right: 8px; bottom: 8px; width: calc(100vw - 16px); height: calc(100vh - 16px); height: calc(100dvh - 16px); } .lfl { display: none; } .lfab { padding: 8px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } svg.anim .ln { stroke-dashoffset: 0; } }
 </style>
 
@@ -364,6 +418,7 @@ svg.chart text { font-family: var(--font-ui); }
       <li>Super Bowl wins and appearances count games in which the player recorded a stat.</li>
       <li>Photos are not embedded because the page can only show images that ship with it. Each player card links to an ESPN profile with a photo and bio.</li>
       <li>EPA and fantasy points use nflverse definitions. Postseason samples are small, so read them with care.</li>
+      <li>Luna, the assistant in the corner, answers questions from this page's data only, right in your browser. Nothing you ask is sent anywhere. Her voice comes from your device's built-in voices; a Spanish-language voice reading English gives her accent, and you can pick another voice in her panel. Voice input works in browsers that support speech recognition, such as Chrome, Edge and Safari.</li>
       <li>Teams: 2000 season to the present, from nflverse team stats and schedules. Relocated franchises are combined under today's team (Raiders, Chargers, Rams), and the season log shows the abbreviation used that year. The Texans begin in 2002.</li>
       <li>Team records, points and playoff results come from final scores. Yards and points allowed are the opponents' totals in those games; total yards are passing yards minus sack yards plus rushing yards, as the NFL counts them.</li>
       <li>Team playoff and Super Bowl counts ignore the Games filter, so they show even when Regular season is picked.</li>
@@ -377,3 +432,4 @@ svg.chart text { font-family: var(--font-ui); }
 <script src="core.js"></script>
 <script src="teamcore.js"></script>
 <script src="app.js"></script>
+<script src="assistant.js"></script>

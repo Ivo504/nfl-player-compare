@@ -810,6 +810,22 @@
     return map[d.id] || d.label;
   }
 
+  // lets the assistant (assistant.js) load players or teams into the page
+  window.NFLApp = {
+    show: function (mode, ids, y) {
+      if (!MODELS[mode]) return;
+      if (mode !== S.mode) setMode(mode);
+      setPicks(ids); S.manual = false; S.example = false; S.tab = 'compare'; S.metric = null;
+      if (y) {
+        var ys = M().years;
+        S.from = Math.max(ys[0], y.from); S.to = Math.min(ys[1], y.to);
+        if (y.st) S.st = y.st;
+      }
+      update();
+      $('tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   // ---------- init ----------
   function init() {
     try { var th = localStorage.getItem(KEY + '.theme'); if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); } catch (e) { /* storage unavailable */ }
