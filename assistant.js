@@ -623,9 +623,9 @@
     t = t.trim();
     lastQ = t;
     if (!t) return HELP;
-    if (/^(hi|hello|hey|hola|good (morning|afternoon|evening))\b/.test(t) && t.split(' ').length <= 3) return { say: pick(['¡Hola! ', 'Hey there! ']) + 'Ask me anything about NFL stats from 1999 to today.', examples: HELP.examples.slice(0, 4) };
+    if (/^(hi|hello|hey|hola|good (morning|afternoon|evening))\b/.test(t) && t.split(' ').length <= 3) return { say: pick(['Hi! ', 'Hey there! ', 'Hello! ']) + 'Ask me anything about NFL stats from 1999 to today.', examples: HELP.examples.slice(0, 4) };
     if (/\b(help|what can you do|how does this work|examples?)\b/.test(t)) return HELP;
-    if (/\bthank/.test(t)) return { say: pick(['¡De nada!', 'Anytime!', 'My pleasure!']) + ' Ask me another one.' };
+    if (/\bthank/.test(t)) return { say: pick(['You got it!', 'Anytime!', 'My pleasure!']) + ' Ask me another one.' };
 
     var y = parseYears(t);
     if (y && y.bad) return { say: 'That year range looks backwards. Try something like "from 2010 to 2020".' };
@@ -735,41 +735,67 @@
 
   // ---------------------------------------------------------------- voice
   var synth = window.speechSynthesis;
-  var PREFERRED = [/paloma/i, /dalia/i, /paulina/i, /ximena/i, /elena/i, /salom/i, /camila/i, /renata/i, /sabina/i, /google español de estados unidos/i, /google español/i, /m[oó]nica/i, /luciana/i, /francisca/i];
-  var FEMALE_EN = [/samantha/i, /aria/i, /jenny/i, /ava/i, /allison/i, /susan/i, /zira/i, /google us english/i, /karen/i, /victoria/i];
+  // Best-sounding American voices first: Edge's neural "Natural" voices, Google's, then Apple's enhanced ones
+  var BEST_US = [/online \(natural\).*united states/i, /google us english/i, /\b(ava|samantha|allison|evan|nathan|zoe|tom|alex)\b.*(premium|enhanced)/i, /\b(samantha|alex|aria|jenny|guy|ava)\b/i];
+  var DEMONYM = { US: 'American', GB: 'British', IE: 'Irish', AU: 'Australian', NZ: 'New Zealand', CA: 'Canadian', IN: 'Indian', ZA: 'South African', NG: 'Nigerian',
+    KE: 'Kenyan', GH: 'Ghanaian', TZ: 'Tanzanian', PH: 'Filipino', SG: 'Singaporean', HK: 'Hong Kong', JM: 'Jamaican', PK: 'Pakistani', MY: 'Malaysian', TT: 'Trinidadian' };
+  var regionNames = null;
+  try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { /* older browser */ }
+  function region(v) {
+    var m = String(v.lang).replace('_', '-').split('-'), r = (m[1] || '').toUpperCase();
+    if (/scotland/i.test(v.lang + v.name)) return 'Scottish';
+    if (DEMONYM[r]) return DEMONYM[r];
+    try { if (r && regionNames) return regionNames.of(r); } catch (e) { /* unknown region */ }
+    return 'Other English';
+  }
+  function shortVoice(v) { return v.name.replace(/^(Microsoft|Google)\s+/i, '').replace(/\s*\(.*$/, '').replace(/\s+Online.*$/i, '').replace(/\s*-\s*English.*$/i, ''); }
   var voices = [];
   var prefs = { voice: null, muted: false };
   try { var sp = JSON.parse(localStorage.getItem(KEY) || 'null'); if (sp) prefs = Object.assign(prefs, sp); } catch (e) { /* storage unavailable */ }
+  // the old Spanish-accent default is gone; drop a saved Spanish voice
+  if (prefs.voice && prefs.voice !== 'mix' && /spanish|español|espanol/i.test(prefs.voice)) prefs.voice = null;
   function savePrefs() { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { /* storage unavailable */ } }
+  function english() { return voices.filter(function (v) { return /^en/i.test(v.lang); }); }
   function loadVoices() { voices = synth ? synth.getVoices() : []; fillVoiceMenu(); }
   function autoVoice() {
-    var es = voices.filter(function (v) { return /^es/i.test(v.lang); });
-    for (var i = 0; i < PREFERRED.length; i++) { var v = es.filter(function (x) { return PREFERRED[i].test(x.name); })[0]; if (v) return v; }
-    var latam = es.filter(function (x) { return /-(US|MX|AR|CO|CL|PE|VE|419)/i.test(x.lang); });
-    if (latam.length) return latam[0];
-    if (es.length) return es[0];
-    var en = voices.filter(function (x) { return /^en/i.test(x.lang); });
-    for (var j = 0; j < FEMALE_EN.length; j++) { var w = en.filter(function (x) { return FEMALE_EN[j].test(x.name); })[0]; if (w) return w; }
-    return en[0] || voices[0] || null;
+    var us = voices.filter(function (v) { return /^en[-_]US/i.test(v.lang); });
+    for (var i = 0; i < BEST_US.length; i++) { var v = us.filter(function (x) { return BEST_US[i].test(x.name); })[0]; if (v) return v; }
+    return us[0] || english()[0] || voices[0] || null;
+  }
+  // "Mix it up": a different voice for each answer, rotating through regions so the accents change too
+  var lastMix = null;
+  function mixVoice() {
+    var en = english();
+    if (en.length < 2) return autoVoice();
+    var byRegion = {};
+    en.forEach(function (v) { (byRegion[region(v)] = byRegion[region(v)] || []).push(v); });
+    var regions = Object.keys(byRegion);
+    var lastR = lastMix ? region(lastMix) : null;
+    var pickR = regions.length > 1 ? regions.filter(function (r) { return r !== lastR; }) : regions;
+    var list = byRegion[pickR[Math.floor(Math.random() * pickR.length)]].filter(function (v) { return v !== lastMix; });
+    lastMix = list[Math.floor(Math.random() * list.length)] || en[0];
+    return lastMix;
   }
   function currentVoice() {
+    if (prefs.voice === 'mix') return mixVoice();
     if (prefs.voice) { var v = voices.filter(function (x) { return x.name === prefs.voice; })[0]; if (v) return v; }
     return autoVoice();
   }
-  function speak(text) {
-    if (!synth || prefs.muted) return;
+  function speak(text, voice) {
+    if (!synth || prefs.muted) return null;
     synth.cancel();
     // one utterance per sentence: Chrome stops long utterances after about 15 seconds
-    var parts = speakable(text).split(/(?<=[.!?])\s+/).filter(Boolean), v = currentVoice();
+    var parts = speakable(text).split(/(?<=[.!?])\s+/).filter(Boolean), v = voice || currentVoice();
     parts.forEach(function (part, i) {
       var u = new SpeechSynthesisUtterance(part);
       if (v) { try { u.voice = v; } catch (e) { /* voice list changed */ } u.lang = v.lang; }
-      u.rate = 0.96; u.pitch = 1.05;
+      u.rate = 1; u.pitch = 1;
       if (i === 0) u.onstart = function () { root.classList.add('talking'); };
       if (i === parts.length - 1) u.onend = function () { root.classList.remove('talking'); };
       u.onerror = function () { root.classList.remove('talking'); };
       synth.speak(u);
     });
+    return v;
   }
 
   // ---------------------------------------------------------------- UI
@@ -777,12 +803,15 @@
   function fillVoiceMenu() {
     if (!voiceSel) return;
     voiceSel.replaceChildren();
-    var auto = autoVoice();
-    voiceSel.append(h('option', { value: '', text: 'Auto' + (auto ? ': ' + auto.name.replace(/\s*\(.*\)/, '') : '') }));
-    var es = voices.filter(function (v) { return /^es/i.test(v.lang); }), en = voices.filter(function (v) { return /^en/i.test(v.lang); });
-    if (es.length) voiceSel.append(h('optgroup', { label: 'Latina accent (Spanish voices)' }, es.map(function (v) { return h('option', { value: v.name, text: v.name + ' · ' + v.lang }); })));
-    if (en.length) voiceSel.append(h('optgroup', { label: 'English voices' }, en.map(function (v) { return h('option', { value: v.name, text: v.name + ' · ' + v.lang }); })));
-    voiceSel.value = prefs.voice && voices.some(function (v) { return v.name === prefs.voice; }) ? prefs.voice : '';
+    var auto = autoVoice(), en = english();
+    voiceSel.append(h('option', { value: '', text: 'Best American voice' + (auto ? ' (' + shortVoice(auto) + ')' : '') }));
+    if (en.length > 1) voiceSel.append(h('option', { value: 'mix', text: 'Mix it up: a different voice each answer' }));
+    var groups = {};
+    en.forEach(function (v) { (groups[region(v)] = groups[region(v)] || []).push(v); });
+    Object.keys(groups).sort(function (a, b) { return a === 'American' ? -1 : b === 'American' ? 1 : a.localeCompare(b); }).forEach(function (r) {
+      voiceSel.append(h('optgroup', { label: r + ' English' }, groups[r].map(function (v) { return h('option', { value: v.name, text: shortVoice(v) + ' (' + r + ')' }); })));
+    });
+    voiceSel.value = prefs.voice === 'mix' && en.length > 1 ? 'mix' : prefs.voice && voices.some(function (v) { return v.name === prefs.voice; }) ? prefs.voice : '';
   }
   function scroll() { log.scrollTop = log.scrollHeight; }
   function addUser(text) { log.append(h('div', { class: 'lm me' }, h('div', { class: 'bub', text: text }))); scroll(); }
@@ -803,7 +832,7 @@
     q = String(q || '').trim();
     if (!q) return;
     addUser(q);
-    var r, oops = { say: 'Ay, something went wrong reading the data for that question. Try asking it another way.' };
+    var r, oops = { say: 'Sorry, something went wrong reading the data for that question. Try asking it another way.' };
     try { r = answer(q); } catch (e) { r = oops; }
     if (r && typeof r.then === 'function') {
       var wait = h('div', { class: 'lm bot' }, h('div', { class: 'av lav', 'aria-hidden': 'true' }), h('div', { class: 'bub typing', 'aria-label': 'Luna is looking it up' }, h('i'), h('i'), h('i')));
@@ -815,16 +844,21 @@
   }
   function reply(r) {
     if (r.autoShow && r.show && window.NFLApp) window.NFLApp.show(r.show.mode, r.show.ids, r.show.y);
-    var opener = r.examples ? '' : pick(['', '', '¡Claro! ', '¡Mira! ', 'Okay! ']);
+    var opener = r.examples ? '' : pick(['', '', 'Sure! ', 'Here you go. ', 'Okay! ']);
     r.say = opener + r.say;
     addBot(r);
-    speak(r.say);
+    var v = speak(r.say);
+    if (v && prefs.voice === 'mix') voiceTag(v);
+  }
+  function voiceTag(v) {
+    var last = log.querySelector('.lm.bot:last-child .bub');
+    if (last) last.append(h('span', { class: 'lvtag', text: 'Voice: ' + shortVoice(v) + ', ' + region(v) + ' English' }));
   }
   function open() {
     root.classList.add('open');
     $fab.setAttribute('aria-expanded', 'true');
     if (!log.children.length) {
-      var hi = { say: '¡Hola! I\'m Luna, your NFL stats guide. Ask me about any player, team or game since 1999: leaders, records, scores, betting lines, injuries and this week\'s games. Type or tap the microphone.', examples: [HELP.examples[0], HELP.examples[6], HELP.examples[7], HELP.examples[9], HELP.examples[10]] };
+      var hi = { say: 'Hey! I\'m Luna, your NFL stats guide. Ask me about any player, team or game since 1999: leaders, records, scores, betting lines, injuries and this week\'s games. Type or tap the microphone.', examples: [HELP.examples[0], HELP.examples[6], HELP.examples[7], HELP.examples[9], HELP.examples[10]] };
       addBot(hi); speak(hi.say);
     }
     setTimeout(function () { input.focus(); }, 50);
@@ -858,7 +892,7 @@
     }
     var form = h('form', { class: 'lform', onsubmit: function (e) { e.preventDefault(); var q = input.value; input.value = ''; ask(q); } },
       input, micBtn, h('button', { type: 'submit', class: 'lsend', 'aria-label': 'Send', text: '➤' }));
-    voiceSel = h('select', { 'aria-label': 'Luna\'s voice', class: 'lvoice', onchange: function () { prefs.voice = voiceSel.value || null; savePrefs(); speak('Hola! This is how I sound now.'); } });
+    voiceSel = h('select', { 'aria-label': 'Luna\'s voice', class: 'lvoice', onchange: function () { prefs.voice = voiceSel.value || null; savePrefs(); var v = speak('Hi! This is how I sound now.'); if (v && prefs.voice !== 'mix') voiceTag(v); } });
     muteBtn = h('button', { type: 'button', class: 'lmute', 'aria-pressed': String(prefs.muted), title: 'Turn voice on or off',
       onclick: function () { prefs.muted = !prefs.muted; savePrefs(); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.textContent = prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on'; if (prefs.muted && synth) synth.cancel(); } },
       prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on');
