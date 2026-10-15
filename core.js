@@ -268,6 +268,7 @@
       case 'half': return num(v, Math.abs(v - Math.round(v)) < 1e-9 ? 0 : 1);
       case 'd1': return num(v, 1);
       case 'd2': return num(v, 2);
+      case 'd3': return num(v, 3);
       case 'pct': return num(v * 100, 1) + '%';
       case 'pg': return num(v, Math.abs(v) >= 10 ? 1 : 2);
       default: return String(v);

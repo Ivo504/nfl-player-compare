@@ -22,6 +22,8 @@ MAX = [("fg_long","fgl"),("pt_long","pntl")]
 
 raw_needed = [c for c,_ in SUM if c not in ("fg50","fuml")] + [c for c,_ in MAX] + ["fg_made_50_59","fg_made_60_","sack_fumbles_lost","rushing_fumbles_lost","receiving_fumbles_lost"]
 df = df.with_columns([pl.col(c).cast(pl.Float64).fill_null(0) for c in set(raw_needed)])
+# nflverse stores sack yards as negative numbers; keep them positive so "yards - sack yards" is right
+df = df.with_columns(pl.col("sack_yards_lost").abs())
 df = df.with_columns(
     (pl.col("fg_made_50_59")+pl.col("fg_made_60_")).alias("fg50"),
     (pl.col("sack_fumbles_lost")+pl.col("rushing_fumbles_lost")+pl.col("receiving_fumbles_lost")).alias("fuml"),
