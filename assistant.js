@@ -825,8 +825,33 @@
     if (prefs.voice) { var v = voices.filter(function (x) { return x.name === prefs.voice; })[0]; if (v) return v; }
     return autoVoice();
   }
+  // Natural AI voice (naturalvoice.js): Kokoro running in the browser. Off until the visitor turns it on.
+  var NV = window.NaturalVoice && window.NaturalVoice.supported() ? window.NaturalVoice : null;
+  if (!prefs.nvoice) prefs.nvoice = 'af_heart';
+  function useNatural() { return NV && prefs.natural && NV.state === 'ready'; }
+  var lastNV = null;
+  function nvPick() {
+    if (prefs.nvoice === 'mix') {
+      var list = NV.voices.filter(function (v) { return v !== lastNV; });
+      lastNV = list[Math.floor(Math.random() * list.length)];
+      return lastNV;
+    }
+    return NV.voices.filter(function (v) { return v.id === prefs.nvoice; })[0] || NV.voices[0];
+  }
+  function stopAll() { if (synth) synth.cancel(); if (NV) NV.stop(); if (root) root.classList.remove('talking'); }
   function speak(text, voice) {
-    if (!synth || prefs.muted) return null;
+    if (prefs.muted) return null;
+    if (useNatural() && !voice) {
+      if (synth) synth.cancel();
+      var nv = nvPick();
+      NV.speak(speakable(text).split(/(?<=[.!?])\s+/), nv.id).catch(function () { deviceSpeak(text); });
+      return { nv: nv };
+    }
+    return deviceSpeak(text, voice);
+  }
+  function deviceSpeak(text, voice) {
+    if (!synth) return null;
+    if (NV) NV.stop();
     synth.cancel();
     // one utterance per sentence: Chrome stops long utterances after about 15 seconds
     var parts = speakable(text).split(/(?<=[.!?])\s+/).filter(Boolean), v = voice || currentVoice();
@@ -847,6 +872,18 @@
   function fillVoiceMenu() {
     if (!voiceSel) return;
     voiceSel.replaceChildren();
+    if (NV && prefs.natural) {
+      voiceSel.append(h('option', { value: 'mix', text: 'Mix it up: a different voice each answer' }));
+      ['American', 'British'].forEach(function (acc) {
+        voiceSel.append(h('optgroup', { label: acc + ' English · natural AI voices' }, NV.voices.filter(function (v) { return v.accent === acc; }).map(function (v) {
+          return h('option', { value: v.id, text: v.name + ' (' + v.gender + (v.note ? ', ' + v.note : '') + ')' });
+        })));
+      });
+      voiceSel.value = prefs.nvoice;
+      var tip0 = root && root.querySelector('.lvtip');
+      if (tip0) tip0.hidden = true;
+      return;
+    }
     var auto = autoVoice(), en = english();
     voiceSel.append(h('option', { value: '', text: 'Best American voice' + (auto ? ' (' + shortVoice(auto) + ')' : '') }));
     if (natural().length > 1) voiceSel.append(h('option', { value: 'mix', text: 'Mix it up: a different voice each answer' }));
@@ -899,18 +936,43 @@
   }
   function voiceTag(v) {
     var last = log.querySelector('.lm.bot:last-child .bub');
-    if (last) last.append(h('span', { class: 'lvtag', text: 'Voice: ' + shortVoice(v) + ', ' + region(v) + ' English' }));
+    if (last) last.append(h('span', { class: 'lvtag', text: v.nv ? 'Voice: ' + v.nv.name + ', ' + v.nv.accent + ' English (natural AI voice)' : 'Voice: ' + shortVoice(v) + ', ' + region(v) + ' English' }));
+  }
+  var nvBtn, nvStatus;
+  function syncNV() {
+    if (!nvBtn) return;
+    nvBtn.setAttribute('aria-pressed', String(!!prefs.natural));
+    nvBtn.textContent = prefs.natural ? (NV.state === 'loading' ? '\u2728 Natural voice: loading…' : '\u2728 Natural voice: on') : '\u2728 Natural voice: off';
+    fillVoiceMenu();
+  }
+  function startNatural(announce) {
+    if (!NV) return;
+    nvStatus.hidden = false;
+    nvStatus.textContent = 'Getting the natural voice ready. The first time it downloads about 90 MB, then it is saved on this device.';
+    syncNV();
+    NV.load().then(function () {
+      nvStatus.textContent = 'Natural voice ready.';
+      setTimeout(function () { nvStatus.hidden = true; }, 2500);
+      syncNV();
+      if (announce) { var v = speak('Hi! This is my natural voice. Ask me anything.'); if (v) voiceTag(v); }
+    }, function (err) {
+      prefs.natural = false; savePrefs(); syncNV();
+      nvStatus.hidden = true;
+      addBot({ say: 'Sorry, the natural voice couldn\'t load on this device, so I\'ll keep using your device\'s voice.', note: err && err.message ? 'Details: ' + err.message : '' });
+    });
   }
   function open() {
     root.classList.add('open');
     $fab.setAttribute('aria-expanded', 'true');
     if (!log.children.length) {
       var hi = { say: 'Hey! I\'m Luna, your NFL stats guide. Ask me about any player, team or game since 1999: leaders, records, scores, betting lines, injuries and this week\'s games. Type or tap the microphone.', examples: [HELP.examples[0], HELP.examples[6], HELP.examples[7], HELP.examples[9], HELP.examples[10]] };
-      addBot(hi); speak(hi.say);
+      addBot(hi);
+      if (!(NV && prefs.natural && NV.state !== 'ready')) speak(hi.say);
     }
+    if (NV && prefs.natural && NV.state === 'off') startNatural(false);
     setTimeout(function () { input.focus(); }, 50);
   }
-  function close() { root.classList.remove('open'); $fab.setAttribute('aria-expanded', 'false'); if (synth) synth.cancel(); $fab.focus(); }
+  function close() { root.classList.remove('open'); $fab.setAttribute('aria-expanded', 'false'); stopAll(); $fab.focus(); }
 
   var $fab;
   function build() {
@@ -924,7 +986,7 @@
       micBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
       micBtn.addEventListener('click', function () {
         if (rec) { rec.stop(); return; }
-        if (synth) synth.cancel();
+        stopAll();
         rec = new SR(); rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
         root.classList.add('listening');
         rec.onresult = function (e) {
@@ -939,9 +1001,27 @@
     }
     var form = h('form', { class: 'lform', onsubmit: function (e) { e.preventDefault(); var q = input.value; input.value = ''; ask(q); } },
       input, micBtn, h('button', { type: 'submit', class: 'lsend', 'aria-label': 'Send', text: '➤' }));
-    voiceSel = h('select', { 'aria-label': 'Luna\'s voice', class: 'lvoice', onchange: function () { prefs.voice = voiceSel.value || null; savePrefs(); var v = speak('Hi! This is how I sound now.'); if (v && prefs.voice !== 'mix') voiceTag(v); } });
+    voiceSel = h('select', { 'aria-label': 'Luna\'s voice', class: 'lvoice', onchange: function () {
+      if (NV && prefs.natural) prefs.nvoice = voiceSel.value || 'af_heart'; else prefs.voice = voiceSel.value || null;
+      savePrefs();
+      if (NV && prefs.natural && NV.state !== 'ready') return;
+      var v = speak('Hi! This is how I sound now.'); if (v) voiceTag(v);
+    } });
+    if (NV) {
+      NV.unlock = NV.unlock || function () {};
+      nvBtn = h('button', { type: 'button', class: 'lnvb', 'aria-pressed': 'false', title: 'A free AI voice that sounds like a real person. Runs on your device.',
+        onclick: function () {
+          NV.unlock();
+          prefs.natural = !prefs.natural; savePrefs();
+          if (prefs.natural) startNatural(true); else { stopAll(); syncNV(); }
+        } });
+      nvStatus = h('p', { class: 'lnvs', hidden: true, role: 'status' });
+      NV.on('progress', function (p) { if (p.total) nvStatus.textContent = 'Downloading the natural voice: ' + Math.round(p.loaded / p.total * 100) + '% of ' + Math.round(p.total / 1048576) + ' MB (one time only)…'; });
+      NV.on('start', function () { root.classList.add('talking'); });
+      NV.on('end', function () { root.classList.remove('talking'); });
+    }
     muteBtn = h('button', { type: 'button', class: 'lmute', 'aria-pressed': String(prefs.muted), title: 'Turn voice on or off',
-      onclick: function () { prefs.muted = !prefs.muted; savePrefs(); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.textContent = prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on'; if (prefs.muted && synth) synth.cancel(); } },
+      onclick: function () { prefs.muted = !prefs.muted; savePrefs(); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.textContent = prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on'; if (prefs.muted) stopAll(); } },
       prefs.muted ? '\u{1F507} Voice off' : '\u{1F50A} Voice on');
     log = h('div', { class: 'llog', role: 'log', 'aria-live': 'polite' });
     var panel = h('div', { class: 'lpanel', id: 'luna', role: 'dialog', 'aria-label': 'Luna, NFL stats assistant' },
@@ -949,13 +1029,16 @@
         h('div', { class: 'av lav big', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
         h('div', { class: 'lht' }, h('b', { text: 'Luna' }), h('span', { text: 'NFL stats guide · answers from this site\'s data' })),
         h('button', { type: 'button', class: 'lx', 'aria-label': 'Close', text: '×', onclick: close })),
-      h('div', { class: 'lbar' }, muteBtn, synth ? voiceSel : null),
-      h('p', { class: 'lvtip', hidden: true }, 'Want a more natural voice? Open this site in Microsoft Edge (free Natural voices), or on iPhone, iPad or Mac download a Premium voice in Settings › Accessibility › Spoken Content › Voices › English.'),
+      h('div', { class: 'lbar' }, muteBtn, synth || NV ? voiceSel : null),
+      NV ? h('div', { class: 'lbar lbar2' }, nvBtn) : null,
+      nvStatus || null,
+      h('p', { class: 'lvtip', hidden: true }, (NV ? 'Want a voice that sounds like a real person? Turn on Natural voice above. ' : 'Want a more natural voice? ') + 'Microsoft Edge also has free Natural voices, and on iPhone, iPad or Mac you can download a Premium voice in Settings › Accessibility › Spoken Content › Voices › English.'),
       log, form);
     root = h('div', { class: 'luna' }, panel, $fab);
     document.body.append(root);
     panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     if (synth) { loadVoices(); if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', loadVoices); else synth.onvoiceschanged = loadVoices; }
+    if (NV) syncNV();
   }
   build();
   window.Luna = { answer: answer, speakable: speakable, ask: ask };
