@@ -15,3 +15,5 @@ for nm in ["Peyton Manning","Patrick Mahomes","Aaron Donald","Tom Brady","Larry 
 # team pages: per-game team stats (offense and defense) and team names/colors
 nfl.load_team_stats(seasons=list(range(2000, nfl.get_current_season() + 1)), summary_level="week").write_csv(out + "/team_week.csv")
 nfl.load_teams().write_csv(out + "/teams.csv")
+# game pages: weekly injury reports (2009 onward)
+nfl.load_injuries(seasons=list(range(2009, nfl.get_current_season() + 1))).write_csv(out + "/injuries.csv")
