@@ -3,6 +3,8 @@ name: Update data and publish site
 on:
   schedule:
     - cron: "17 10 * * *"
+    # extra runs after Sunday, Monday and Thursday night games (UTC) so finals and box scores land sooner
+    - cron: "41 5 * * 1,2,5"
   workflow_dispatch:
   push:
     branches: [main]

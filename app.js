@@ -98,7 +98,7 @@
       var pp = S.mode === 'players' ? S.picks : (STORE.players ? STORE.players.picks : []);
       var tp = S.mode === 'teams' ? S.picks : (STORE.teams ? STORE.teams.picks : []);
       localStorage.setItem(KEY, JSON.stringify({
-        mode: S.mode,
+        mode: S.mode, games: !!S.games,
         ids: pp.map(function (p) { return C.players[p.p][0]; }),
         tids: T ? tp.map(function (p) { return T.teams[p.p][0]; }) : [],
         st: S.st, pg: S.pg, tab: S.tab, xmode: S.xmode, from: S.from, to: S.to
@@ -270,7 +270,9 @@
     ps.append(h('button', { type: 'button', class: 'chip dice', text: '\u2684 Random matchup', title: 'Pick 2 to 4 random teams', onclick: randomMatchup }));
   }
   function setMode(m) {
-    if (m === S.mode || !MODELS[m]) return;
+    if (m === 'games') { showGames(true); return; }
+    if (S.games) showGames(false);
+    if (m === S.mode || !MODELS[m]) { syncControls(); save(); return; }
     var cur = {};
     MODEKEYS.forEach(function (k) { cur[k] = S[k]; });
     STORE[S.mode] = cur;
@@ -286,6 +288,17 @@
     hiddenSlots.clear(); shown = new Set();
     buildYears(); buildCats(); setMeta();
     update();
+  }
+  // Games mode swaps the comparison panels for the scores page (gamesui.js)
+  function showGames(on) {
+    S.games = on;
+    document.body.setAttribute('data-view', on ? 'games' : 'compare');
+    $('games').hidden = !on;
+    if (on) window.NFLGames.mount($('games'));
+    var meta = C.meta || {};
+    if (on) $('meta').textContent = 'Every game since 1999 · scores, betting lines, box scores and injury reports · data through ' + (meta.through || '');
+    else setMeta();
+    syncControls(); save();
   }
   function buildYears() {
     var fy = $('from'), ty = $('to'), ys = M().years;
@@ -355,7 +368,10 @@
     fy.addEventListener('change', function () { S.from = +fy.value; if (S.from > S.to) S.to = S.from; update(); });
     ty.addEventListener('change', function () { S.to = +ty.value; if (S.to < S.from) S.from = S.to; update(); });
     buildCats();
-    seg($('modesw'), T ? [['players', 'Players'], ['teams', 'Teams']] : [['players', 'Players']], function () { return S.mode; }, setMode, 'Compare players or teams');
+    var modes = [['players', 'Players']];
+    if (T) modes.push(['teams', 'Teams']);
+    if (window.NFLGames) modes.push(['games', 'Games']);
+    seg($('modesw'), modes, function () { return S.games ? 'games' : S.mode; }, setMode, 'Players, teams or games');
     if (T) buildTeamGrid();
     $('q').addEventListener('input', renderResults);
     $('q').addEventListener('keydown', function (e) {
@@ -814,6 +830,7 @@
   window.NFLApp = {
     show: function (mode, ids, y) {
       if (!MODELS[mode]) return;
+      if (S.games) showGames(false);
       if (mode !== S.mode) setMode(mode);
       setPicks(ids); S.manual = false; S.example = false; S.tab = 'compare'; S.metric = null;
       if (y) {
@@ -823,6 +840,11 @@
       }
       update();
       $('tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    showGame: function (id) {
+      if (!window.NFLGames) return;
+      showGames(true);
+      window.NFLGames.open(id);
     }
   };
 
@@ -848,9 +870,9 @@
       STORE.teams = { picks: tids.slice(0, MAXP).map(function (p, i) { return { p: p, slot: i }; }), from: T.years[0], to: T.years[1], cats: new Set(), manual: false, metric: null, logp: null, example: false };
       if (saved.mode === 'teams' && inYears(T.years)) { STORE.teams.from = +saved.from; STORE.teams.to = +saved.to; }
     }
-    if (T && saved.mode === 'teams') { setMode('teams'); return; }
-    buildYears(); setMeta();
-    update();
+    if (T && saved.mode === 'teams') setMode('teams');
+    else { buildYears(); setMeta(); update(); }
+    if (saved.games && window.NFLGames) showGames(true);
   }
   init();
 })();

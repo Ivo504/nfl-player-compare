@@ -153,7 +153,7 @@
     return y;
   }
   function stripYears(t) {
-    return t.replace(/super ?bowl (\d{2}|[ivxlc]{2,7})\b/g, 'super bowl').replace(/\b(19|20)\d{2}s?\b/g, ' ').replace(/\b(this|current|last|past) (season|year|\d+ seasons|\d+ years)\b/g, ' ');
+    return t.replace(/\s+/g, ' ').replace(/super ?bowl (\d{2}|[ivxlc]{2,7})\b/g, 'super bowl').replace(/\b(19|20)\d{2}s?\b/g, ' ').replace(/\b(this|current|last|past) (season|year|\d+ seasons|\d+ years)\b/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   // ---------------------------------------------------------------- stat vocab
@@ -451,10 +451,169 @@
     return { say: say, show: { mode: 'players', ids: ids, y: o2 }, autoShow: true };
   }
 
+
+  // ---------------------------------------------------------------- games: scores, betting, box scores, injuries, schedule
+  var NG = window.NFLGames;
+  var ROUNDS = [[/wild ?card/, 1], [/divisional|division round/, 2], [/conference (championship|title|game)|afc championship|nfc championship|afc title|nfc title/, 3], [/super ?bowl/, 4]];
+  function teamCodes(ent) { return ent.teams.map(function (i) { return T.teams[i][0]; }); }
+  function tn(code, season) { return NG.teamName(code, season); }
+  function nick(code, season) { var n = tn(code, season).split(' '); return n[n.length - 1] === '49ers' || n.length === 1 ? n[n.length - 1] : n[n.length - 1]; }
+  function sc(g, code) { return NG.fr(code) === NG.fr(g.home) ? g.hs : g.as; }
+  function opp(g, code) { return NG.fr(code) === NG.fr(g.home) ? g.away : g.home; }
+  function when(g) { return (g.type ? 'the ' + g.season + ' season\'s ' + NG.roundName(g) : 'Week ' + g.week + ' of ' + g.season) + ' (' + NG.dateText(g) + ')'; }
+  function bettingLine(g) {
+    var out = [];
+    var sp = NG.spreadText(g);
+    var was = g.played ? 'was' : 'is';
+    if (sp) out.push(sp === 'Pick\'em' ? 'The game ' + was + ' a pick\'em' : 'The spread ' + was + ' ' + sp.replace('−', 'minus ') + (g.played ? ', and ' + (NG.coverText(g) === 'Push' ? 'it was a push' : tn(NG.coverText(g).split(' ')[0], g.season).split(' ').slice(-1)[0] + ' covered') : ''));
+    if (g.total != null) out.push('the over/under ' + was + ' ' + g.total + (g.played ? ', and it went ' + NG.totalText(g).toLowerCase().replace(/ \(.*/, '') : ''));
+    if (g.aml != null && g.hml != null) out.push('moneyline ' + g.away + ' ' + NG.ml(g.aml) + ', ' + g.home + ' ' + NG.ml(g.hml));
+    return out.length ? cap(out.join('; ')) + '.' : '';
+  }
+  function gameSentence(g) {
+    var lv = NG.liveFor(g);
+    if (!g.played && lv && lv.state === 'in') return 'Live right now: ' + tn(g.away, g.season) + ' ' + lv.away.score + ', ' + tn(g.home, g.season) + ' ' + lv.home.score + ' (' + lv.detail + ').';
+    if (!g.played) return 'The ' + tn(g.away, g.season) + ' play at the ' + tn(g.home, g.season) + ' on ' + NG.kickoff(g) + ' (' + NG.roundName(g) + ').';
+    var w = NG.winner(g);
+    if (w === 'TIE') return 'The ' + tn(g.away, g.season) + ' and ' + tn(g.home, g.season) + ' tied ' + g.as + '–' + g.hs + ' in ' + when(g) + '.';
+    var l = w === g.home ? g.away : g.home;
+    return 'The ' + tn(w, g.season) + ' beat the ' + tn(l, g.season) + ' ' + Math.max(g.hs, g.as) + '–' + Math.min(g.hs, g.as) + (g.ot ? ' in overtime' : '') + ' in ' + when(g) + (w === g.away ? ', on the road' : ', at home') + '.';
+  }
+  function showGame(g) { return { gameId: g.id }; }
+  function gameRow(g, code) {
+    if (!g.played) return { rank: g.type ? NG.roundName(g) : 'Wk ' + g.week, name: g.away + ' at ' + g.home, value: NG.kickoff(g) };
+    var name = code ? (NG.fr(code) === NG.fr(g.home) ? 'vs ' : 'at ') + opp(g, code) : g.away + ' at ' + g.home;
+    var v = code ? (NG.winner(g) === 'TIE' ? 'T ' : NG.fr(NG.winner(g)) === NG.fr(code) ? 'W ' : 'L ') + sc(g, code) + '–' + sc(g, opp(g, code)) : g.as + '–' + g.hs;
+    return { rank: g.type ? NG.roundName(g).replace('Conference Championship', 'Conf.') + ' ' + g.season : g.season + ' wk ' + g.week, name: name, value: v };
+  }
+
+  function gameAnswer(t, ent, y, roundType, week) {
+    var codes = teamCodes(ent).slice(0, 2);
+    var q = { teams: codes };
+    if (y) { if (y.single) q.season = y.from; else { q.from = y.from; q.to = y.to; } }
+    if (roundType) q.type = roundType;
+    if (week) q.week = week;
+    if (/\bplayoffs?|postseason\b/.test(t) && !roundType) q.type = 'post';
+    var list = NG.find(q);
+    // "next game", "this week": upcoming
+    if (/\bnext\b|\bupcoming\b|\bthis week\b|\btonight\b|\btoday\b|\bwhen do\b|\bwhen is\b|\bschedule\b/.test(t) && !y) {
+      var up = NG.upcoming(codes[0], codes.length ? 3 : 16).filter(function (g) { return codes.length < 2 || NG.isTeam(g, codes[1]); });
+      if (!up.length) return { say: 'I don\'t see any upcoming ' + (codes.length ? tn(codes[0]) + ' ' : '') + 'games on the schedule yet.' };
+      var g0 = up[0];
+      var say = gameSentence(g0) + ' ' + bettingLine(g0);
+      return { say: say, list: up.slice(0, 8).map(function (g) { return gameRow(g); }), listTitle: codes.length ? 'Upcoming' : 'Upcoming games', gameId: g0.id };
+    }
+    if (!list.length) return { say: 'I couldn\'t find ' + (codes.length === 2 ? 'a game between the ' + tn(codes[0]) + ' and the ' + tn(codes[1]) : 'that game') + (y ? ' ' + y.label : '') + '. Game results go back to 1999.' };
+    var played = list.filter(function (g) { return g.played; });
+    if (list.length === 1) { var g = list[0]; return { say: gameSentence(g) + ' ' + bettingLine(g), gameId: g.id }; }
+    if (codes.length === 2 && (!y || !y.single) && !roundType && !week && played.length > 1) {
+      var a = codes[0], wa = 0, wb = 0, ti = 0;
+      played.forEach(function (g) { var w = NG.winner(g); if (w === 'TIE') ti++; else if (NG.fr(w) === NG.fr(a)) wa++; else wb++; });
+      var last = played[played.length - 1];
+      var next = list.filter(function (g) { return !g.played; })[0];
+      var say2 = (y ? cap(y.label) : 'Since 1999') + ' the ' + tn(a) + ' and ' + tn(codes[1]) + ' have played ' + played.length + ' times. The ' + (wa >= wb ? tn(a) + ' lead ' + wa + '–' + wb : tn(codes[1]) + ' lead ' + wb + '–' + wa) + (ti ? ' with ' + ti + ' tie' + (ti > 1 ? 's' : '') : '') + '. Most recently, ' + gameSentence(last).replace(/^The /, 'the ');
+      if (next) say2 += ' Next up: ' + NG.kickoff(next) + '.';
+      return { say: say2, list: played.slice(-6).reverse().map(function (g) { return gameRow(g, a); }), listTitle: 'Recent meetings', gameId: last.id };
+    }
+    if (codes.length === 1 && list.length > 4) {
+      var c = codes[0], w2 = 0, l2 = 0, t2 = 0;
+      played.forEach(function (g) { var w = NG.winner(g); if (w === 'TIE') t2++; else if (NG.fr(w) === NG.fr(c)) w2++; else l2++; });
+      return { say: 'The ' + tn(c) + ' went ' + w2 + '–' + l2 + (t2 ? '–' + t2 : '') + ' in those ' + played.length + ' games' + (y ? ' ' + y.label : '') + '. Here they are; tap one in the Games page for the box score.',
+        list: list.slice(-18).map(function (g) { return gameRow(g, c); }), listTitle: 'Results', gamesQuery: q };
+    }
+    var g1 = played[played.length - 1] || list[0];
+    return { say: gameSentence(g1) + ' ' + bettingLine(g1) + (list.length > 1 ? ' I found ' + list.length + ' games in all.' : ''), list: list.map(function (g) { return gameRow(g, codes[0]); }), listTitle: 'Games', gameId: g1.id };
+  }
+
+  function statLine(r) {
+    var out = [];
+    if (r.att) out.push(r.cmp + ' of ' + r.att + ' passing for ' + r.pyd + ' yards' + (r.ptd ? ', ' + r.ptd + ' TD' + (r.ptd > 1 ? 's' : '') : '') + (r.int ? ', ' + r.int + ' interception' + (r.int > 1 ? 's' : '') : ''));
+    if (r.car) out.push(r.car + ' carr' + (r.car > 1 ? 'ies' : 'y') + ' for ' + r.ryd + ' yards' + (r.rtd ? ' and ' + r.rtd + ' TD' + (r.rtd > 1 ? 's' : '') : ''));
+    if (r.rec || r.tgt) out.push(r.rec + ' catch' + (r.rec === 1 ? '' : 'es') + ' for ' + r.cyd + ' yards' + (r.ctd ? ' and ' + r.ctd + ' TD' + (r.ctd > 1 ? 's' : '') : '') + ' on ' + r.tgt + ' targets');
+    if (r.tkl || r.dsk || r.dint || r.ff) out.push([r.tkl ? r.tkl + ' tackles' : '', r.dsk ? r.dsk + ' sack' + (r.dsk === 1 ? '' : 's') : '', r.dint ? r.dint + ' interception' + (r.dint > 1 ? 's' : '') : '', r.ff ? r.ff + ' forced fumble' + (r.ff > 1 ? 's' : '') : ''].filter(Boolean).join(', '));
+    if (r.fga || r.xpa) out.push(r.fgm + ' of ' + r.fga + ' field goals and ' + r.xpm + ' of ' + r.xpa + ' extra points');
+    return out.length ? plist(out) : 'no recorded stats';
+  }
+  function playerGameAnswer(p, t, ent, y, roundType, week) {
+    var pl = C.players[p];
+    var seasons = [];
+    if (y) for (var s = Math.max(y.from, pl[4]); s <= Math.min(y.to, pl[5]); s++) seasons.push(s);
+    else for (var s2 = pl[4]; s2 <= pl[5]; s2++) seasons.push(s2);
+    if (!seasons.length) return { say: pname(p) + ' did not play ' + (y ? y.label : '') + '.' };
+    var oppCodes = teamCodes(ent);
+    return Promise.all(seasons.map(function (s) { return NG.loadSeason(s).then(function (d) { return [s, d]; }, function () { return [s, null]; }); })).then(function (all) {
+      var hits = [];
+      all.forEach(function (sd) {
+        if (!sd[1]) return;
+        NG.find({ season: sd[0], week: week || undefined, type: roundType || (/\bplayoffs?|postseason\b/.test(t) ? 'post' : undefined) }).forEach(function (g) {
+          var line = NG.boxLines(sd[1], g).filter(function (x) { return x.p === p; })[0];
+          if (!line) return;
+          var mine = line.side ? g.home : g.away, other = line.side ? g.away : g.home;
+          if (oppCodes.length && !oppCodes.some(function (c) { return NG.fr(c) === NG.fr(other); })) return;
+          hits.push({ g: g, r: line, mine: mine, other: other });
+        });
+      });
+      if (!hits.length) return { say: 'I couldn\'t find a game for ' + pname(p) + (oppCodes.length ? ' against the ' + tn(oppCodes[0]) : '') + (y ? ' ' + y.label : '') + (week ? ' in week ' + week : '') + '.' };
+      function res(hh) { var w = NG.winner(hh.g); return w === 'TIE' ? 'tied ' + sc(hh.g, hh.mine) + '–' + sc(hh.g, hh.other) : (NG.fr(w) === NG.fr(hh.mine) ? 'won ' : 'lost ') + sc(hh.g, hh.mine) + '–' + sc(hh.g, hh.other); }
+      var hh = hits[hits.length - 1];
+      var say = 'In ' + when(hh.g) + ' against the ' + tn(hh.other, hh.g.season) + ', ' + pname(p) + ' had ' + statLine(hh.r) + '. The ' + nick(hh.mine, hh.g.season) + ' ' + res(hh) + '.';
+      if (hits.length > 1) say = 'I found ' + hits.length + ' games. The most recent: ' + say.charAt(0).toLowerCase() + say.slice(1);
+      var main = hh.r.att ? 'pyd' : hh.r.car >= hh.r.rec ? 'ryd' : hh.r.rec ? 'cyd' : hh.r.dsk || hh.r.tkl ? 'tkl' : 'fgm';
+      var unit = { pyd: ' pass yds', ryd: ' rush yds', cyd: ' rec yds', tkl: ' tackles', fgm: ' FG' }[main];
+      return { say: say, list: hits.length > 1 ? hits.slice(-10).reverse().map(function (x) { return { rank: x.g.type ? NG.roundName(x.g).replace('Conference Championship', 'Conf.') + ' ' + x.g.season : x.g.season + ' wk ' + x.g.week, name: (x.mine === x.g.home ? 'vs ' : 'at ') + x.other + ' · ' + res(x).replace(/^(won|lost|tied) /, function (m) { return m.charAt(0).toUpperCase() + ' '; }), value: x.r[main] + unit }; }) : null, listTitle: pname(p) + ' game log', gameId: hh.g.id };
+    });
+  }
+
+  var BAD = { Out: 3, Doubtful: 2, Questionable: 1 };
+  function injuryAnswer(p, codes, t, y, week) {
+    if (p == null && codes.length) {
+      var code = codes[0], g;
+      if (week && y && y.single) g = NG.find({ teams: [code], season: y.from, week: week })[0];
+      else if (y && y.single) g = NG.find({ teams: [code], season: y.from }).filter(function (x) { return x.played; }).slice(-1)[0];
+      else g = NG.upcoming(code, 1)[0] || NG.find({ teams: [code], played: true }).slice(-1)[0];
+      if (!g) return { say: 'I couldn\'t find that game for the ' + tn(code) + '.' };
+      if (g.season < 2009) return { say: 'Injury reports start in 2009.' };
+      return NG.loadSeason(g.season).then(function (d) {
+        var list = NG.injuries(d, code, g.week).filter(function (x) { return BAD[x.status]; }).sort(function (a, b) { return BAD[b.status] - BAD[a.status]; });
+        if (!list.length) return { say: 'The ' + tn(code, g.season) + (g.played ? ' had' : ' have') + ' nobody listed as out, doubtful or questionable for ' + when(g) + '.' + (g.played ? '' : ' The final report usually comes out two days before the game, so check back.'), gameId: g.id };
+        var outs = list.filter(function (x) { return x.status === 'Out'; });
+        return { say: 'For ' + when(g) + ', the ' + tn(code, g.season) + ' listed ' + list.length + ' player' + (list.length > 1 ? 's' : '') + (outs.length ? ', with ' + plist(outs.slice(0, 4).map(function (x) { return x.name + ' (' + (x.injury || 'not given') + ')'; })) + ' out' : '') + '.',
+          list: list.slice(0, 12).map(function (x) { return { rank: x.status, name: x.name + ' ' + (x.pos || ''), value: x.injury || '' }; }), listTitle: 'Injury report', gameId: g.id };
+      });
+    }
+    var pl = C.players[p], from = Math.max(2009, y ? y.from : pl[4]), to = Math.min(y ? y.to : pl[5], pl[5]);
+    if (to < 2009) return { say: 'Injury reports start in 2009, and ' + pname(p) + '\'s ' + (y ? 'season' : 'career') + ' is earlier than that.' };
+    var seasons = [];
+    for (var s = Math.max(from, pl[4]); s <= to; s++) seasons.push(s);
+    return Promise.all(seasons.map(function (s) { return NG.loadSeason(s).then(function (d) { return [s, d]; }, function () { return [s, null]; }); })).then(function (all) {
+      var spells = [];
+      all.forEach(function (sd) {
+        if (!sd[1]) return;
+        var entries = [];
+        Object.keys(sd[1].inj).forEach(function (k) {
+          sd[1].inj[k].forEach(function (x) { if ((x[1] === p || (x[1] < 0 && x[0] === pl[1])) && BAD[x[4]] && x[3] && x[3] !== 'Not injury related') entries.push({ week: +k.split('|')[1], injury: x[3], status: x[4] }); });
+        });
+        entries.sort(function (a, b) { return a.week - b.week; });
+        entries.forEach(function (e) {
+          var last = spells[spells.length - 1];
+          if (last && last.season === sd[0] && last.injury === e.injury && e.week - last.to <= 2) { last.to = e.week; last.weeks++; if (BAD[e.status] > BAD[last.worst]) last.worst = e.status; if (e.status === 'Out') last.out++; }
+          else spells.push({ season: sd[0], injury: e.injury, from: e.week, to: e.week, weeks: 1, worst: e.status, out: e.status === 'Out' ? 1 : 0 });
+        });
+      });
+      if (!spells.length) return { say: pname(p) + ' was never listed as out, doubtful or questionable with an injury ' + (y ? y.label : 'since 2009') + '.' };
+      var recent = spells.slice(-3).reverse();
+      function wk(x) { return x.from === x.to ? 'week ' + x.from : 'weeks ' + x.from + ' to ' + x.to; }
+      var say = pname(p) + ' was on the injury report ' + spells.length + ' time' + (spells.length > 1 ? 's' : '') + ' ' + (y ? y.label : 'since 2009') + '. Most recently: ' +
+        recent.map(function (x) { var inj = x.injury.toLowerCase(); return (/^[aeiou]/.test(inj) ? 'an ' : 'a ') + inj + ' injury in ' + x.season + ' (' + wk(x) + (x.out ? ', out ' + x.out + ' game' + (x.out > 1 ? 's' : '') : ', listed ' + x.worst.toLowerCase()) + ')'; }).join('; ') + '.';
+      return { say: say, list: spells.slice(-10).reverse().map(function (x) { return { rank: x.season, name: cap(x.injury) + ' · ' + wk(x), value: x.out ? 'Out ' + x.out : x.worst }; }), listTitle: 'Injury history',
+        note: 'From weekly injury reports (2009 on). Players placed on injured reserve drop off the report, so a season-ending injury can show only one or two weeks.' };
+    });
+  }
+
   var HELP = {
-    say: 'I can answer questions from this site\'s data: player stats since 1999, team records since 2000, awards and Super Bowls. Try one of these.',
+    say: 'I can answer questions from this site\'s data: player stats since 1999, team records since 2000, every game score, betting line, box score and injury report, awards and Super Bowls. Try one of these.',
     examples: ['Who has the most passing yards ever?', 'Most rushing yards in a single season', 'Who won the Super Bowl in 2019?', 'Who won MVP in 2015?',
-      'How many Super Bowls have the Patriots won?', 'Chiefs record in 2023', 'Patrick Mahomes stats this season', 'Compare Travis Kelce and Rob Gronkowski', 'Which team had the best record in 2007?', 'Most sacks by a defensive player since 2015']
+      'How many Super Bowls have the Patriots won?', 'Chiefs record in 2023', 'Who won the Bills Chiefs divisional game in 2021?', 'When do the Cowboys play next?', 'How did Mahomes play against the Bills in 2021?', 'Was Joe Burrow hurt in 2023?', 'What was the spread in Super Bowl 57?', 'Patrick Mahomes stats this season', 'Compare Travis Kelce and Rob Gronkowski', 'Which team had the best record in 2007?', 'Most sacks by a defensive player since 2015']
   };
 
   var lastQ = '';
@@ -486,6 +645,24 @@
     var isLeader = /\b(who|which|whom)\b.*\b(most|least|fewest|highest|lowest|best|worst|top|leads?|led|leader|leading)\b|\b(most|least|fewest|highest|lowest|leaders?|leading|top \d+|top five|top ten|best|worst)\b/.test(tt);
     var topN = (tt.match(/\btop (\d+|five|ten|three)\b/) || [])[1];
     topN = topN ? (WORDNUM[topN] || +topN) : 5;
+
+    // games: injuries, a player's game, scores, betting lines, schedule
+    if (NG) {
+      var roundType = null;
+      ROUNDS.forEach(function (r) { if (roundType == null && r[0].test(tt)) roundType = r[1]; });
+      var wm = t.match(/\bweek (\d{1,2})\b/), week = wm ? +wm[1] : null;
+      if (/\binjur|\bhurt\b|\binjury report\b|\bhealthy\b|\bon the report\b/.test(tt) && (ent.players.length || ent.teams.length))
+        return injuryAnswer(ent.players.length ? ent.players[0] : null, teamCodes(ent), tt, y, week);
+      var gameWords = /\bscore\b|\bfinal\b|\bbeat\b|\bresult|\bgame\b|\bgames\b|\bmatchup\b|\bspread\b|\bline\b|\bodds\b|\bmoney ?line\b|\bover ?under\b|\bo\/u\b|\bcover|\bplay(ed|s)?\b|\bhead to head\b|\bvs\b|\bversus\b|\bagainst\b|\bnext\b|\bupcoming\b|\btonight\b|\btoday\b|\bthis week\b|\bschedule\b|\bwho won\b/;
+      if (ent.players.length === 1 && (week || roundType || /\bagainst\b|\bvs\b|\bversus\b|\bgame\b|\bin the playoffs\b/.test(tt)) && !/\bcompare\b/.test(tt) && ent.players.length < 2)
+        return playerGameAnswer(ent.players[0], tt, ent, y, roundType, week);
+      if (!ent.players.length && (ent.teams.length >= 1 && (gameWords.test(tt) || week || roundType) && !/\brecord\b|\bhow many\b|\bmost\b/.test(tt)))
+        return gameAnswer(tt, ent, y, roundType, week);
+      if (!ent.players.length && !ent.teams.length && /\b(games|schedule|matchups|odds|spreads|lines)\b.*\b(this week|today|tonight|next|upcoming|this weekend)\b|\b(this week|today|tonight|this weekend)\b.*\b(games|odds|spreads)\b|what games/.test(tt))
+        return gameAnswer(tt, ent, null, null, null);
+      if (/super ?bowl/.test(tt) && /\b(spread|line|odds|score|over ?under|money ?line)\b/.test(tt) && y)
+        return gameAnswer(tt, ent, y, 4, null);
+    }
 
     // Super Bowl winners
     if (/super ?bowl/.test(tt) && !ent.teams.length && !ent.players.length && /\b(won|win|winner|winners|champion|champions|who played|played in)\b/.test(tt) && !/\bmost\b/.test(tt))
@@ -614,6 +791,7 @@
     if (r.list && r.list.length) kids.push(h('div', { class: 'lt', text: r.listTitle || '' }), h('ol', { class: 'lrank' }, r.list.map(function (x) { return h('li', null, h('span', { class: 'rk', text: x.rank }), h('span', { class: 'nm', text: x.name }), h('b', { text: x.value })); })));
     if (r.note) kids.push(h('p', { class: 'lnote', text: r.note }));
     var acts = [];
+    if (r.gameId && window.NFLApp) acts.push(h('button', { type: 'button', class: 'lact', text: 'Open the box score', onclick: function () { window.NFLApp.showGame(r.gameId); } }));
     if (r.show && window.NFLApp && !r.autoShow) acts.push(h('button', { type: 'button', class: 'lact', text: r.show.ids.length > 1 ? 'Compare them in the table' : 'Show in the table', onclick: function () { window.NFLApp.show(r.show.mode, r.show.ids, r.show.y); } }));
     acts.push(h('button', { type: 'button', class: 'lact ghost', 'aria-label': 'Say it again', title: 'Say it again', text: '\u{1F50A} Replay', onclick: function () { speak(r.say); } }));
     kids.push(h('div', { class: 'lacts' }, acts));
@@ -625,8 +803,17 @@
     q = String(q || '').trim();
     if (!q) return;
     addUser(q);
-    var r;
-    try { r = answer(q); } catch (e) { r = { say: 'Ay, something went wrong reading the data for that question. Try asking it another way.' }; }
+    var r, oops = { say: 'Ay, something went wrong reading the data for that question. Try asking it another way.' };
+    try { r = answer(q); } catch (e) { r = oops; }
+    if (r && typeof r.then === 'function') {
+      var wait = h('div', { class: 'lm bot' }, h('div', { class: 'av lav', 'aria-hidden': 'true' }), h('div', { class: 'bub typing', 'aria-label': 'Luna is looking it up' }, h('i'), h('i'), h('i')));
+      log.append(wait); scroll();
+      r.then(function (x) { wait.remove(); reply(x || oops); }, function () { wait.remove(); reply({ say: 'I couldn\'t load that season\'s game data. Check your connection and try again.' }); });
+      return;
+    }
+    reply(r);
+  }
+  function reply(r) {
     if (r.autoShow && r.show && window.NFLApp) window.NFLApp.show(r.show.mode, r.show.ids, r.show.y);
     var opener = r.examples ? '' : pick(['', '', '¡Claro! ', '¡Mira! ', 'Okay! ']);
     r.say = opener + r.say;
@@ -637,7 +824,7 @@
     root.classList.add('open');
     $fab.setAttribute('aria-expanded', 'true');
     if (!log.children.length) {
-      var hi = { say: '¡Hola! I\'m Luna, your NFL stats guide. Ask me about any player since 1999 or any team since 2000: leaders, records, awards, Super Bowls. Type or tap the microphone.', examples: HELP.examples.slice(0, 5) };
+      var hi = { say: '¡Hola! I\'m Luna, your NFL stats guide. Ask me about any player, team or game since 1999: leaders, records, scores, betting lines, injuries and this week\'s games. Type or tap the microphone.', examples: [HELP.examples[0], HELP.examples[6], HELP.examples[7], HELP.examples[9], HELP.examples[10]] };
       addBot(hi); speak(hi.say);
     }
     setTimeout(function () { input.focus(); }, 50);
