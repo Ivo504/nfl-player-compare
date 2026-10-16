@@ -196,9 +196,9 @@
   function $(id) { return document.getElementById(id); }
 
   var G = { season: null, week: 'all', team: '', open: null };
-  var KEY = 'nflcompare.games';
-  try { var sv = JSON.parse(localStorage.getItem(KEY) || 'null'); if (sv) { G.season = sv.season; G.week = sv.week; G.team = sv.team; } } catch (e) { /* storage unavailable */ }
-  function saveG() { try { localStorage.setItem(KEY, JSON.stringify({ season: G.season, week: G.week, team: G.team })); } catch (e) { /* storage unavailable */ } }
+  var KEY = 'nflcompare.games2';
+  try { var sv = JSON.parse(localStorage.getItem(KEY) || 'null'); if (sv) { G.season = sv.season; G.week = sv.week; G.team = sv.team; G.view = sv.view; } } catch (e) { /* storage unavailable */ }
+  function saveG() { try { localStorage.setItem(KEY, JSON.stringify({ season: G.season, week: G.week, team: G.team, view: G.view })); } catch (e) { /* storage unavailable */ } }
 
   function helm(cls, code, left) {
     var d = h('span', { class: cls, 'aria-hidden': 'true' });
@@ -250,7 +250,7 @@
     var cw = currentWeek();
     var wg = games.filter(function (g) { return g.season === cw.season && g.week === cw.week; });
     var box = h('section', { class: 'gsec gtrack', id: 'gtrack', 'aria-label': 'This week' },
-      h('div', { class: 'gsh' }, h('h2', { text: cw.season + ' · ' + (wg[0] ? roundName(wg[0]) : 'Week ' + cw.week) }),
+      h('div', { class: 'gsh' }, h('h2', { text: 'This week · ' + cw.season + ' ' + (wg[0] ? roundName(wg[0]) : 'Week ' + cw.week) }),
         h('span', { class: 'gstat', id: 'livestat', text: liveStatus() }),
         h('button', { type: 'button', class: 'chip', text: 'Refresh', onclick: function () { $('livestat').textContent = 'Checking for live scores…'; fetchLive(); } })),
       h('div', { class: 'ggrid' }, wg.map(function (g) { return card(g, { noRound: true }); })));
@@ -262,52 +262,121 @@
     var n = Object.keys(live.events).filter(function (k) { return live.events[k].state === 'in'; }).length;
     return (n ? n + ' game' + (n > 1 ? 's' : '') + ' live · updates every 30 seconds' : 'Live scores on · no games in progress') + ' · checked ' + new Date(live.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
+  // the latest week with finished games: where past results start
+  function latestPlayedWeek() {
+    for (var i = 0; i < SEASONS.length; i++) {
+      var played = games.filter(function (g) { return g.season === SEASONS[i] && g.played; });
+      if (played.length) return { season: SEASONS[i], week: played[played.length - 1].week };
+    }
+    return currentWeek();
+  }
+  function favorite(g) { return g.spread == null || g.spread === 0 ? null : g.spread > 0 ? g.home : g.away; }
+  // betting and results summary for a list of games, optionally from one team's side
+  function summarize(list, team) {
+    var s = { n: 0, w: 0, l: 0, t: 0, ats: [0, 0, 0], ou: [0, 0, 0], fav: [0, 0, 0], home: [0, 0] };
+    list.forEach(function (g) {
+      if (!g.played) return;
+      s.n++;
+      var w = winner(g), c = coverText(g), f = favorite(g);
+      if (team) {
+        if (w === 'TIE') s.t++; else if (fr(w) === fr(team)) s.w++; else s.l++;
+        if (c === 'Push') s.ats[2]++; else if (c) s.ats[fr(c.split(' ')[0]) === fr(team) ? 0 : 1]++;
+      } else {
+        if (w !== 'TIE') s.home[w === g.home ? 0 : 1]++;
+        if (f && c) { if (c === 'Push') s.fav[2]++; else s.fav[c.split(' ')[0] === f ? 0 : 1]++; }
+      }
+      if (g.total != null) { var pts = g.as + g.hs; s.ou[pts > g.total ? 0 : pts < g.total ? 1 : 2]++; }
+    });
+    return s;
+  }
+  function recTxt(a) { return a[0] + '–' + a[1] + (a[2] ? '–' + a[2] : ''); }
+  function summaryBar(list) {
+    var s = summarize(list, G.team || null);
+    if (!s.n) return h('p', { class: 'hint', text: list.length ? 'These games haven\'t been played yet. Betting lines shown are the latest available.' : '' });
+    var items;
+    if (G.team) items = [['Record', s.w + '–' + s.l + (s.t ? '–' + s.t : '')], ['Against the spread', recTxt(s.ats)], ['Over / under', recTxt(s.ou)]];
+    else items = [['Games played', String(s.n)], ['Favorites covered', recTxt(s.fav)], ['Overs – unders', recTxt(s.ou)], ['Home – away wins', s.home[0] + '–' + s.home[1]]];
+    return h('div', { class: 'gsum' }, items.map(function (it) { return h('div', null, h('span', { class: 'lbl', text: it[0] }), h('b', { text: it[1] })); }));
+  }
+  function resultsTable(list) {
+    var rows = list.map(function (g) {
+      var w = winner(g), c = coverText(g), t = g.played && g.total != null ? totalText(g).replace(/ \(.*/, '') : null;
+      function team(code, won) { return h('td', { class: 'l gtm' + (won ? ' won' : '') }, h('span', { class: 'gtmi' }, helm('gth', code), h('span', { text: code }))); }
+      return h('tr', { class: 'grow' + (G.open === g.id ? ' sel' : ''), tabindex: '0', 'data-g': g.id, onclick: function () { openGame(g.id); }, onkeydown: function (e) { if (e.key === 'Enter') openGame(g.id); } },
+        h('td', { class: 'l', text: g.type ? TYPES[g.type].replace('Conference Championship', 'Conf.') : String(g.week) }),
+        h('td', { class: 'l', text: g.played ? dateText(g).replace(/^\w+, /, '') : kickoff(g) }),
+        team(g.away, w === g.away),
+        h('td', { class: 'gsc', text: g.played ? g.as + '–' + g.hs + (g.ot ? ' OT' : '') : '–' }),
+        team(g.home, w === g.home),
+        h('td', { text: spreadText(g) || '–' }),
+        h('td', { class: 'gats', text: c || '' }),
+        h('td', { text: g.total != null ? String(g.total) : '–' }),
+        h('td', { class: 'gats', text: t || '' }),
+        h('td', { class: 'l gml', text: g.aml != null || g.hml != null ? g.away + ' ' + ml(g.aml) + ' / ' + g.home + ' ' + ml(g.hml) : '–' }));
+    });
+    return h('div', { class: 'tablewrap' }, h('table', { class: 'cmp gres-t' },
+      h('caption', { class: 'sr', text: 'Game results and betting lines' }),
+      h('thead', null, h('tr', null, ['Wk', 'Date', 'Away', 'Score', 'Home', 'Spread', 'Covered', 'Total', 'O/U', 'Moneyline'].map(function (c, i) { return h('th', { scope: 'col', class: i < 5 && i !== 3 || i === 9 ? 'l' : '', text: c }); }))),
+      h('tbody', null, rows)));
+  }
   function browser() {
-    if (G.season == null || SEASONS.indexOf(+G.season) < 0) { var cw = currentWeek(); G.season = cw.season; G.week = String(cw.week); }
+    if (G.season == null || SEASONS.indexOf(+G.season) < 0) { var lw = latestPlayedWeek(); G.season = lw.season; G.week = String(lw.week); }
     var sg = games.filter(function (g) { return g.season === +G.season; });
     var weeks = Array.from(new Set(sg.map(function (g) { return g.week; }))).sort(function (a, b) { return a - b; });
-    var seasonSel = h('select', { 'aria-label': 'Season', onchange: function (e) { G.season = +e.target.value; G.week = 'all'; G.open = null; saveG(); render(); } },
+    function go(season, week) { G.season = season; G.week = String(week); G.open = null; saveG(); render(); }
+    var seasonSel = h('select', { 'aria-label': 'Season', onchange: function (e) { go(+e.target.value, G.team ? 'all' : 'reg'); } },
       SEASONS.map(function (s) { return h('option', { value: s, text: s + ' season' }); }));
     seasonSel.value = G.season;
-    var weekSel = h('select', { 'aria-label': 'Week', onchange: function (e) { G.week = e.target.value; G.open = null; saveG(); render(); } },
-      h('option', { value: 'all', text: 'All weeks' }), h('option', { value: 'post', text: 'All playoffs' }),
+    var weekSel = h('select', { 'aria-label': 'Week', onchange: function (e) { go(+G.season, e.target.value); } },
+      h('option', { value: 'all', text: 'Whole season + playoffs' }), h('option', { value: 'reg', text: 'Whole regular season' }), h('option', { value: 'post', text: 'All playoffs' }),
       weeks.map(function (w) { var g = sg.filter(function (x) { return x.week === w; })[0]; return h('option', { value: w, text: g.type ? TYPES[g.type] : 'Week ' + w }); }));
     weekSel.value = String(G.week);
-    var teamSel = h('select', { 'aria-label': 'Team', onchange: function (e) { G.team = e.target.value; G.open = null; saveG(); render(); } },
+    // previous / next week, crossing into the neighboring season at the ends
+    var wi = weeks.indexOf(+G.week), si = SEASONS.indexOf(+G.season);
+    function step(d) {
+      if (wi < 0) { go(+G.season, weeks[d < 0 ? weeks.length - 1 : 0]); return; }
+      var nw = wi + d;
+      if (nw >= 0 && nw < weeks.length) { go(+G.season, weeks[nw]); return; }
+      var ns = SEASONS[si - d];
+      if (ns == null) return;
+      var nweeks = Array.from(new Set(games.filter(function (g) { return g.season === ns; }).map(function (g) { return g.week; }))).sort(function (a, b) { return a - b; });
+      go(ns, d < 0 ? nweeks[nweeks.length - 1] : nweeks[0]);
+    }
+    var teamSel = h('select', { 'aria-label': 'Team', onchange: function (e) { G.team = e.target.value; if (G.team && /^\d+$/.test(G.week)) G.week = 'all'; G.open = null; saveG(); render(); } },
       h('option', { value: '', text: 'All teams' }), T ? T.teams.map(function (t) { return h('option', { value: t[0], text: t[1] }); }) : null);
     teamSel.value = G.team || '';
+    var viewSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Show as' }, [['table', 'Table'], ['cards', 'Cards']].map(function (v) {
+      return h('button', { type: 'button', 'aria-pressed': String((G.view || 'table') === v[0]), text: v[1], onclick: function () { G.view = v[0]; saveG(); render(); } });
+    }));
     var list = sg.filter(function (g) {
       if (G.week === 'post' && !g.type) return false;
-      if (G.week !== 'all' && G.week !== 'post' && g.week !== +G.week) return false;
+      if (G.week === 'reg' && g.type) return false;
+      if (/^\d+$/.test(G.week) && g.week !== +G.week) return false;
       if (G.team && !isTeam(g, G.team)) return false;
       return true;
     });
     var groups = [], cur = null;
     list.forEach(function (g) { if (!cur || cur.w !== g.week) { cur = { w: g.week, label: roundName(g), items: [] }; groups.push(cur); } cur.items.push(g); });
-    var summary = null;
-    if (G.team) {
-      var rec = { w: 0, l: 0, t: 0, cov: 0, ncov: 0, push: 0 };
-      list.forEach(function (g) {
-        if (!g.played) return;
-        var w = winner(g);
-        if (w === 'TIE') rec.t++; else if (fr(w) === fr(G.team)) rec.w++; else rec.l++;
-        var c = coverText(g);
-        if (c === 'Push') rec.push++; else if (c) { if (fr(c.split(' ')[0]) === fr(G.team)) rec.cov++; else rec.ncov++; }
-      });
-      summary = h('p', { class: 'hint', text: teamName(G.team) + ': ' + rec.w + '–' + rec.l + (rec.t ? '–' + rec.t : '') + ' in these games · against the spread ' + rec.cov + '–' + rec.ncov + (rec.push ? '–' + rec.push : '') + '.' });
-    }
-    return h('section', { class: 'gsec', id: 'gbrowse', 'aria-label': 'Find a game' },
-      h('div', { class: 'gsh' }, h('h2', { text: 'Every game since 1999' })),
-      h('div', { class: 'gfilters' }, seasonSel, weekSel, teamSel),
-      summary,
-      list.length ? groups.map(function (gr) { return h('div', { class: 'gwk' }, h('h3', { class: 'lbl', text: gr.label }), h('div', { class: 'ggrid' }, gr.items.map(function (g) { return card(g, { noRound: true }); }))); })
-        : h('p', { class: 'empty', text: 'No games match.' }),
+    var body;
+    if (!list.length) body = h('p', { class: 'empty', text: 'No games match.' });
+    else if ((G.view || 'table') === 'table') body = resultsTable(list);
+    else body = groups.map(function (gr) { return h('div', { class: 'gwk' }, h('h3', { class: 'lbl', text: gr.label }), h('div', { class: 'ggrid' }, gr.items.map(function (g) { return card(g, { noRound: true }); }))); });
+    return h('section', { class: 'gsec', id: 'gbrowse', 'aria-label': 'Past results and betting lines' },
+      h('div', { class: 'gsh' }, h('h2', { text: 'Results & betting lines' }), h('span', { class: 'gstat', text: 'Every game since 1999 · final scores, spreads, totals and moneylines' })),
+      h('div', { class: 'gfilters' },
+        h('div', { class: 'gnav' }, h('button', { type: 'button', class: 'chip', 'aria-label': 'Previous week', text: '◀ Prev', disabled: wi === 0 && si === SEASONS.length - 1 ? true : null, onclick: function () { step(-1); } }),
+          seasonSel, weekSel,
+          h('button', { type: 'button', class: 'chip', 'aria-label': 'Next week', text: 'Next ▶', disabled: wi === weeks.length - 1 && si === 0 ? true : null, onclick: function () { step(1); } })),
+        teamSel, viewSeg),
+      summaryBar(list),
+      body,
+      h('p', { class: 'note', text: 'Tap a game for its box score, betting results and injury report. Spreads and totals are closing lines; moneylines start in 2006.' }),
       h('div', { id: 'gdetail' }));
   }
 
   function openGame(id) {
     G.open = id;
-    Array.prototype.forEach.call(document.querySelectorAll('.gcard'), function (b) { b.classList.toggle('sel', b.getAttribute('data-g') === id); });
+    Array.prototype.forEach.call(document.querySelectorAll('.gcard, .grow'), function (b) { b.classList.toggle('sel', b.getAttribute('data-g') === id); });
     renderDetail(true);
   }
   function statTable(title, cols, rows) {
