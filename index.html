@@ -403,6 +403,26 @@ body[data-view="games"] .panel, body[data-view="games"] .filters, body[data-view
 .gts { font-size: 18px; font-variant-numeric: tabular-nums; }
 .gline { font-size: 12px; color: var(--ink2); }
 .gres { font-size: 12px; font-weight: 600; color: var(--accent); }
+.gnav { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gnav .chip:disabled { opacity: 0.4; cursor: default; transform: none; }
+.gsum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.gsum > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--accent); }
+.gsum b { font-family: var(--font-label); font-size: 24px; font-variant-numeric: tabular-nums; }
+table.gres-t { font-size: 13px; }
+.gres-t th, .gres-t td { padding: 6px 10px; }
+.gres-t thead th { text-align: right; } .gres-t thead th.l { text-align: left; }
+.gres-t td.l { text-align: left; }
+@media (max-width: 520px) { .gres-t th:nth-child(2), .gres-t td:nth-child(2) { display: none; } }
+.gres-t td.gtm { color: var(--ink2); font-weight: 600; }
+.gres-t .gtmi { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+.gres-t td.gtm.won { color: var(--ink); font-weight: 800; }
+.gres-t td.gtm .gth { width: 26px; display: inline-block; }
+.gres-t td.gsc { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gres-t td.gats { color: var(--accent); font-weight: 600; }
+.gres-t td.gml { color: var(--ink2); }
+.gres-t tr.grow { cursor: pointer; }
+.gres-t tr.grow:hover > td, .gres-t tr.grow.sel > td { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.gres-t tr.grow:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .gdetail { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 10px 30px -18px var(--shadow); scroll-margin-top: 12px; }
 .gdh { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
 .gdteam { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--tc) 14%, var(--surface)); border-left: 6px solid var(--tc); font-weight: 600; min-width: 0; }
