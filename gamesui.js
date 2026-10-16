@@ -200,9 +200,14 @@
   try { var sv = JSON.parse(localStorage.getItem(KEY) || 'null'); if (sv) { G.season = sv.season; G.week = sv.week; G.team = sv.team; } } catch (e) { /* storage unavailable */ }
   function saveG() { try { localStorage.setItem(KEY, JSON.stringify({ season: G.season, week: G.week, team: G.team })); } catch (e) { /* storage unavailable */ } }
 
+  function helm(cls, code, left) {
+    var d = h('span', { class: cls, 'aria-hidden': 'true' });
+    if (window.Art) d.innerHTML = window.Art.helmet(code, { left: left });
+    return d;
+  }
   function teamChip(code, season, score, won) {
     return h('div', { class: 'gt' + (won ? ' won' : ''), style: '--tc:' + teamColor(code) },
-      h('span', { class: 'gtab', text: code }), h('span', { class: 'gtn', text: shortName(code, season) }),
+      helm('gth', code), h('span', { class: 'gtab', text: code }), h('span', { class: 'gtn', text: shortName(code, season) }),
       score != null ? h('b', { class: 'gts', text: String(score) }) : null);
   }
   function card(g, opts) {
@@ -342,14 +347,16 @@
         h('span', { text: g.aml == null && g.hml == null ? 'Not available before 2006' : '' })));
     var people = h('p', { class: 'note', text: [person(g.aqb) && 'QBs: ' + person(g.aqb) + ' (' + g.away + '), ' + person(g.hqb) + ' (' + g.home + ')', person(g.acoach) && 'Coaches: ' + person(g.acoach) + ', ' + person(g.hcoach)].filter(Boolean).join(' · ') });
     var head = h('div', { class: 'gdh' },
-      h('div', { class: 'gdteam' + (w === g.away ? ' won' : ''), style: '--tc:' + teamColor(g.away) }, h('span', { text: teamName(g.away, g.season) }), h('b', { text: g.played ? String(g.as) : lv && lv.away.score != null ? String(lv.away.score) : '' })),
+      h('div', { class: 'gdteam' + (w === g.away ? ' won' : ''), style: '--tc:' + teamColor(g.away) }, helm('gdh2', g.away), h('span', { text: teamName(g.away, g.season) }), h('b', { text: g.played ? String(g.as) : lv && lv.away.score != null ? String(lv.away.score) : '' })),
       h('div', { class: 'gdmid', text: g.played ? (g.ot ? 'Final/OT' : 'Final') : lv ? lv.detail : kickoff(g) }),
-      h('div', { class: 'gdteam home' + (w === g.home ? ' won' : ''), style: '--tc:' + teamColor(g.home) }, h('b', { text: g.played ? String(g.hs) : lv && lv.home.score != null ? String(lv.home.score) : '' }), h('span', { text: teamName(g.home, g.season) })));
+      h('div', { class: 'gdteam home' + (w === g.home ? ' won' : ''), style: '--tc:' + teamColor(g.home) }, h('b', { text: g.played ? String(g.hs) : lv && lv.home.score != null ? String(lv.home.score) : '' }), h('span', { text: teamName(g.home, g.season) }), helm('gdh2', g.home, true)));
     var body = h('div', { class: 'gdbody' }, h('p', { class: 'note', text: 'Loading box score and injury report…' }));
     box.replaceChildren(h('section', { class: 'gdetail', 'aria-label': 'Game details' },
       h('div', { class: 'gsh' }, h('h2', { text: g.season + ' ' + roundName(g) + (g.div ? ' · division game' : '') }), h('button', { type: 'button', class: 'x', 'aria-label': 'Close game details', text: '×', onclick: function () { G.open = null; box.replaceChildren(); Array.prototype.forEach.call(document.querySelectorAll('.gcard.sel'), function (b) { b.classList.remove('sel'); }); } })),
       head, h('p', { class: 'hint', text: info }), bet, people, body));
     if (scroll) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // a Super Bowl gets confetti in the winner's colors
+    if (scroll && g.type === 4 && g.played && window.Art) setTimeout(function () { var sec = box.querySelector('.gdetail'); if (sec) window.Art.confetti(sec, window.Art.colorsFor(winner(g))); }, 350);
     loadSeason(g.season).then(function (data) {
       if (G.open !== g.id) return;
       var lines = boxLines(data, g);
