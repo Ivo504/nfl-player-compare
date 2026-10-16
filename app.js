@@ -181,6 +181,20 @@
     return kids.length ? h('div', { class: 'links' }, kids) : null;
   }
 
+  // original helmet artwork (art.js) in a team's colors; falls back to nothing if art.js is missing
+  function helmetBox(cls, code, label) {
+    var d = h('div', { class: cls, 'aria-hidden': 'true' });
+    if (window.Art && code) d.innerHTML = window.Art.helmet(code, { label: label });
+    else if (label) d.textContent = label;
+    return d;
+  }
+  // Super Bowl badges: confetti in the team's colors
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.badge.gold');
+    if (!b || !window.Art) return;
+    var card = b.closest('.pcard');
+    window.Art.confetti(card || b.parentNode, ['#f7d774', getComputedStyle(card || b).getPropertyValue('--pc').trim() || '#e5484d']);
+  });
   function initials(name) {
     var w = name.replace(/\b(Jr|Sr|II|III|IV)\.?$/i, '').trim().split(/\s+/);
     return ((w[0] || '').charAt(0) + (w.length > 1 ? w[w.length - 1].charAt(0) : '')).toUpperCase();
@@ -199,7 +213,7 @@
       var hn = C.honors(pk.p);
       var isNew = !shown.has(pk.p);
       box.append(h('div', { class: 'pcard k' + pk.slot + (isNew ? ' new' : '') },
-        h('div', { class: 'av', 'aria-hidden': 'true', text: initials(pl[1]) }),
+        helmetBox('av helm', (pl[6] || '').split('/').pop(), initials(pl[1])),
         h('div', { class: 'pinfo' },
           h('div', { class: 'pn', text: pl[1] }),
           h('div', { class: 'pm' }, posTag(pl), ' ' + (teamsText(x) || pl[6]) + ' · ' + spanText(x)),
@@ -226,7 +240,7 @@
       badges.push(h('span', { class: 'badge', text: tot.po + ' playoff season' + (tot.po === 1 ? '' : 's') }));
       var old = tot.teams.filter(function (a) { return a !== tm[0]; });
       box.append(h('div', { class: 'pcard k' + pk.slot + (isNew ? ' new' : '') },
-        h('div', { class: 'av team', style: '--tc:' + tm[4] + ';--tc2:' + tm[5], 'aria-hidden': 'true', text: tm[0] }),
+        helmetBox('av helm', tm[0]),
         h('div', { class: 'pinfo' },
           h('div', { class: 'pn', text: tm[1] }),
           h('div', { class: 'pm', text: tm[3] + ' · ' + spanText(x) }),
@@ -259,7 +273,7 @@
           return h('button', {
             type: 'button', class: 'tile', 'data-t': t, style: '--tc:' + tm[4], 'aria-pressed': 'false', title: tm[1],
             onclick: function () { if (S.picks.some(function (x) { return x.p === t; })) removePlayer(t); else addPlayer(t); }
-          }, h('b', { text: tm[0] }), h('span', { text: tm[1].split(' ').slice(-1)[0] }));
+          }, helmetBox('th', tm[0]), h('b', { text: tm[0] }), h('span', { text: tm[1].split(' ').slice(-1)[0] }));
         })));
     });
     var ps = $('tpresets');
