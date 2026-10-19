@@ -1041,5 +1041,6 @@
     if (NV) syncNV();
   }
   build();
-  window.Luna = { answer: answer, speakable: speakable, ask: ask };
+  // say(): lets other parts of the site (trivia) speak with Luna's current voice
+  window.Luna = { answer: answer, speakable: speakable, ask: ask, say: function (text) { return speak(text); }, stop: function () { stopAll(); } };
 })();
