@@ -67,24 +67,43 @@
     if (loading[season]) return loading[season];
     loading[season] = new Promise(function (res, rej) {
       var s = document.createElement('script');
-      s.src = 'games/' + season + '.js';
+      s.src = 'games/' + season + '.js' + (window.NFL_BUILD ? '?v=' + window.NFL_BUILD : '');
       s.onload = function () { window.NFL_G[season] ? res(window.NFL_G[season]) : rej(new Error('empty')); };
       s.onerror = function () { delete loading[season]; rej(new Error('Could not load ' + season)); };
       document.head.append(s);
     });
     return loading[season];
   }
+  // Season files list their own players (gsis id, name, position); map them to this page's player list by id.
+  var DEFPOS = /^(DE|DT|NT|DL|LB|ILB|MLB|OLB|CB|DB|S|SS|FS|SAF)$/;
+  function person2(data, li) {
+    var t = data.pl && data.pl[li];
+    if (!t) return { p: -1, name: '', pos: '', def: false };
+    var p = C.byId.has(t[0]) ? C.byId.get(t[0]) : -1;
+    return { p: p, name: t[1], pos: t[2], def: p >= 0 ? C.players[p][3] === 'DEF' : DEFPOS.test(t[2]) };
+  }
   function boxLines(data, g) {
     var f = data.boxf;
+    if (!data.pl) return [];
     return (data.box[g.id] || []).map(function (r) {
-      var o = { p: r[0], side: r[1], name: C.players[r[0]][1], pos: C.players[r[0]][2] };
+      var who = person2(data, r[0]);
+      var o = { p: who.p, side: r[1], name: who.name, pos: who.pos, def: who.def };
       f.forEach(function (k, i) { o[k] = r[i + 2] || 0; });
       return o;
     });
   }
   function injuries(data, code, week) {
     var list = data.inj[code + '|' + week] || data.inj[fr(code) + '|' + week] || [];
-    return list.map(function (x) { return { name: x[0], p: x[1], pos: x[2], injury: x[3], status: x[4], injury2: x[5] }; });
+    return list.map(function (x) { var who = x[1] >= 0 ? person2(data, x[1]) : { p: -1 }; return { name: x[0], p: who.p, pos: x[2], injury: x[3], status: x[4], injury2: x[5] }; });
+  }
+  // every injury-report entry in a season file, with its week
+  function allInjuries(data) {
+    var out = [];
+    Object.keys(data.inj).forEach(function (k) {
+      var week = +k.split('|')[1];
+      data.inj[k].forEach(function (x) { var who = x[1] >= 0 ? person2(data, x[1]) : { p: -1 }; out.push({ week: week, team: k.split('|')[0], name: x[0], p: who.p, injury: x[3], status: x[4] }); });
+    });
+    return out;
   }
 
   // ---------------------------------------------------------------- search (shared with Luna)
@@ -392,7 +411,7 @@
       statTable('Passing', [['C/Att', function (r) { return r.cmp + '/' + r.att; }], ['Yds', 'pyd'], ['TD', 'ptd'], ['INT', 'int'], ['Sck', 'sck']], by('att')),
       statTable('Rushing', [['Car', 'car'], ['Yds', 'ryd'], ['TD', 'rtd'], ['Avg', function (r) { return r.car ? (r.ryd / r.car).toFixed(1) : '–'; }]], by('car')),
       statTable('Receiving', [['Rec', 'rec'], ['Tgt', 'tgt'], ['Yds', 'cyd'], ['TD', 'ctd']], L.filter(function (x) { return x.tgt > 0 || x.rec > 0; }).sort(function (a, b) { return b.cyd - a.cyd; })),
-      statTable('Defense', [['Tkl', 'tkl'], ['Sck', 'dsk'], ['INT', 'dint'], ['FF', 'ff']], L.filter(function (x) { return x.tkl + x.dsk + x.dint + x.ff > 0 && C.players[x.p][3] === 'DEF'; }).sort(function (a, b) { return (b.dsk * 3 + b.dint * 4 + b.tkl) - (a.dsk * 3 + a.dint * 4 + a.tkl); }).slice(0, 8)),
+      statTable('Defense', [['Tkl', 'tkl'], ['Sck', 'dsk'], ['INT', 'dint'], ['FF', 'ff']], L.filter(function (x) { return x.tkl + x.dsk + x.dint + x.ff > 0 && x.def; }).sort(function (a, b) { return (b.dsk * 3 + b.dint * 4 + b.tkl) - (a.dsk * 3 + a.dint * 4 + a.tkl); }).slice(0, 8)),
       statTable('Kicking', [['FG', function (r) { return r.fgm + '/' + r.fga; }], ['XP', function (r) { return r.xpm + '/' + r.xpa; }]], L.filter(function (x) { return x.fga + x.xpa > 0; }))
     ];
   }
@@ -450,7 +469,7 @@
   }
 
   window.NFLGames = {
-    games: games, byId: byId, seasons: SEASONS, find: find, loadSeason: loadSeason, boxLines: boxLines, injuries: injuries,
+    games: games, byId: byId, seasons: SEASONS, find: find, loadSeason: loadSeason, boxLines: boxLines, injuries: injuries, allInjuries: allInjuries,
     winner: winner, spreadText: spreadText, coverText: coverText, totalText: totalText, ml: ml, teamName: teamName, roundName: roundName,
     fr: fr, isTeam: isTeam, upcoming: upcoming, kickoff: kickoff, dateText: dateText, currentWeek: currentWeek, liveFor: liveFor, fetchLive: fetchLive, live: live,
     mount: mount, open: function (id) { var g = byId.get(id); if (!g) return; G.season = g.season; G.week = String(g.week); G.team = ''; G.open = id; saveG(); render(); renderDetail(true); }
