@@ -9,7 +9,10 @@ python aggregate.py work/data _site
 python enrich_build.py work/data work/enrich . _site
 python teams_build.py work/enrich _site
 python games_build.py work/data work/enrich _site
-cp index.html core.js teamcore.js art.js gamesui.js trivia.js app.js naturalvoice.js assistant.js _site/
+cp index.html core.js teamcore.js art.js gamesui.js trivia.js moments.js app.js naturalvoice.js assistant.js _site/
+# stamp this build on every script URL so browsers never mix files from different days
+BUILD=$(date -u +%Y%m%d%H%M)
+sed -i "s/__BUILD__/$BUILD/g" _site/index.html
 # Barlow fonts (so the site looks the same everywhere)
 mkdir -p work/fontsrc && (cd work/fontsrc && npm init -y >/dev/null && npm i --no-audit --no-fund @fontsource/barlow @fontsource/barlow-condensed >/dev/null)
 for w in 400 500 600 700; do cp work/fontsrc/node_modules/@fontsource/barlow/files/barlow-latin-$w-normal.woff2 _site/fonts/; done

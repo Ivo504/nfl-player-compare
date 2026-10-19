@@ -598,9 +598,7 @@
       all.forEach(function (sd) {
         if (!sd[1]) return;
         var entries = [];
-        Object.keys(sd[1].inj).forEach(function (k) {
-          sd[1].inj[k].forEach(function (x) { if ((x[1] === p || (x[1] < 0 && x[0] === pl[1])) && BAD[x[4]] && x[3] && x[3] !== 'Not injury related') entries.push({ week: +k.split('|')[1], injury: x[3], status: x[4] }); });
-        });
+        NG.allInjuries(sd[1]).forEach(function (x) { if ((x.p === p || (x.p < 0 && x.name === pl[1])) && BAD[x.status] && x.injury && x.injury !== 'Not injury related') entries.push({ week: x.week, injury: x.injury, status: x.status }); });
         entries.sort(function (a, b) { return a.week - b.week; });
         entries.forEach(function (e) {
           var last = spells[spells.length - 1];

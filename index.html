@@ -379,7 +379,8 @@ svg.chart text { font-family: var(--font-ui); }
 
 /* ---------- Games view ---------- */
 body[data-view="games"] .panel, body[data-view="games"] .filters, body[data-view="games"] #tabs, body[data-view="games"] #view,
-body[data-view="trivia"] .panel, body[data-view="trivia"] .filters, body[data-view="trivia"] #tabs, body[data-view="trivia"] #view { display: none; }
+body[data-view="trivia"] .panel, body[data-view="trivia"] .filters, body[data-view="trivia"] #tabs, body[data-view="trivia"] #view,
+body[data-view="moments"] .panel, body[data-view="moments"] .filters, body[data-view="moments"] #tabs, body[data-view="moments"] #view { display: none; }
 .games { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .games[hidden] { display: none; }
 .gsec { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -520,6 +521,41 @@ svg.helmet { display: block; width: 100%; height: auto; overflow: visible; filte
 .tv-mark { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-weight: 700; font-size: 13px; }
 .tv-review li.ok .tv-mark { background: #1baf7a; } .tv-review li.no .tv-mark { background: #e5484d; }
 .tv-review span { color: var(--ink2); }
+
+/* ---------- Moments ---------- */
+.moments { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.moments[hidden] { display: none; }
+.mo-head { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 14px; color: #fff;
+  background: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1.4px) 0 0 / 6px 6px, linear-gradient(135deg, #3b0d0d, #7a1414 45%, #0b1633); border-top: 4px solid #f7d774; }
+.mo-head h2 { margin: 0; font-family: var(--font-label); font-weight: 700; font-size: 32px; letter-spacing: 0.03em; text-transform: uppercase; color: #f7d774; }
+.mo-head p { margin: 4px 0 0; color: rgba(255,255,255,0.85); }
+.mo-head .chip { color: #fff; border-color: rgba(255,255,255,0.35); --cc: #f7d774; }
+.mo-head .chip[aria-pressed="true"] { color: #2a1a00; }
+.mo-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+input[type="search"].mo-search { flex: 1 1 240px; min-width: 0; font: inherit; padding: 9px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); color: #fff; }
+input[type="search"].mo-search:focus { border-color: #f7d774; box-shadow: 0 0 0 3px rgba(247,215,116,0.3); }
+.mo-search::placeholder { color: rgba(255,255,255,0.7); }
+.mo-head .seg { border-color: rgba(255,255,255,0.35); }
+.mo-head .seg button { color: #fff; }
+.mo-head .seg button[aria-pressed="true"] { background: #f7d774; color: #2a1a00; }
+.mo-head .gstat { color: rgba(255,255,255,0.8); }
+.mo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; }
+.mo-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid #f7d774; box-shadow: 0 10px 26px -20px var(--shadow); transition: transform 0.18s, box-shadow 0.18s; animation: fadein 0.3s ease; }
+.mo-card:hover { transform: translateY(-3px); box-shadow: 0 16px 30px -18px var(--shadow); }
+.mo-superbowl { border-left-color: #f7d774; } .mo-playoffs { border-left-color: #3987e5; } .mo-regular { border-left-color: #1baf7a; }
+.mo-records { border-left-color: #8e4ec6; } .mo-classic { border-left-color: #a0522d; } .mo-upsets { border-left-color: #e5484d; } .mo-shootouts { border-left-color: #ef5f00; }
+.mo-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--ink2); }
+.mo-tag { font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--tint); color: var(--ink); }
+.mo-title { margin: 0; font-family: var(--font-label); font-weight: 700; font-size: 24px; letter-spacing: 0.02em; line-height: 1.1; }
+.mo-match { display: flex; align-items: center; gap: 8px; font-size: 14px; flex-wrap: wrap; }
+.mo-h { width: 36px; flex: none; }
+.mo-score { font-family: var(--font-label); font-weight: 700; font-size: 20px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.mo-desc { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink2); flex: 1; }
+.mo-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mo-yt { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 999px; background: #e62117; color: #fff; font-weight: 700; font-size: 14px; text-decoration: none; transition: filter 0.15s, transform 0.15s; }
+.mo-yt:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.mo-play { width: 22px; height: 22px; border-radius: 50%; background: #fff; position: relative; flex: none; }
+.mo-play::after { content: ""; position: absolute; left: 8px; top: 6px; border-left: 9px solid #e62117; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } svg.anim .ln { stroke-dashoffset: 0; } }
 </style>
 
@@ -566,6 +602,7 @@ svg.helmet { display: block; width: 100%; height: auto; overflow: visible; filte
   <main id="view" aria-live="polite"></main>
   <div id="games" class="games" hidden></div>
   <div id="trivia" class="trivia" hidden></div>
+  <div id="moments" class="moments" hidden></div>
 
   <footer class="foot">
     <h2>About these numbers</h2>
@@ -585,6 +622,7 @@ svg.helmet { display: block; width: 100%; height: auto; overflow: visible; filte
       <li>Games: scores, betting lines and quarterbacks from nflverse schedules, 1999 to the present. Spreads and totals are closing lines; moneylines start in 2006. Box scores are built from nflverse player stats, so offensive linemen are not listed. Injury reports (2009 on) are each team's final report before the game.</li>
       <li>Live scores and in-game odds come from ESPN's public scoreboard, checked every 30 seconds while games are on. If it can't be reached, the page shows the latest daily update instead.</li>
       <li>Trivia questions are generated from the same data as the rest of the site, so season leaders are regular-season totals since 1999, and career totals start in 1999.</li>
+      <li>Moments link to YouTube searches, which open in a new tab. Scores for moments since 1999 come from the game data and link to the box score.</li>
       <li>Luna, the assistant in the corner, answers questions from this page's data only, right in your browser. Nothing you ask is sent anywhere. Her optional Natural voice is Kokoro, a free open-source AI voice that runs on your device; turning it on downloads the model (about 90 MB) once from Hugging Face. Otherwise her voice comes from your device's built-in voices: the best American English voice by default, or any English voice your device has (British, Irish, Australian, Indian, Nigerian, South African and more, depending on the device), or a different one for each answer. Voice input works in browsers that support speech recognition, such as Chrome, Edge and Safari.</li>
       <li>Teams: 2000 season to the present, from nflverse team stats and schedules. Relocated franchises are combined under today's team (Raiders, Chargers, Rams), and the season log shows the abbreviation used that year. The Texans begin in 2002.</li>
       <li>Team records, points and playoff results come from final scores. Yards and points allowed are the opponents' totals in those games; total yards are passing yards minus sack yards plus rushing yards, as the NFL counts them.</li>
@@ -593,15 +631,17 @@ svg.helmet { display: block; width: 100%; height: auto; overflow: visible; filte
   </footer>
 </div>
 
-<script src="data.js"></script>
-<script src="extra.js"></script>
-<script src="teams.js"></script>
-<script src="core.js"></script>
-<script src="teamcore.js"></script>
-<script src="art.js"></script>
-<script src="games.js"></script>
-<script src="gamesui.js"></script>
-<script src="trivia.js"></script>
-<script src="app.js"></script>
-<script src="naturalvoice.js"></script>
-<script src="assistant.js"></script>
+<script>window.NFL_BUILD = '__BUILD__';</script>
+<script src="data.js?v=__BUILD__"></script>
+<script src="extra.js?v=__BUILD__"></script>
+<script src="teams.js?v=__BUILD__"></script>
+<script src="core.js?v=__BUILD__"></script>
+<script src="teamcore.js?v=__BUILD__"></script>
+<script src="art.js?v=__BUILD__"></script>
+<script src="games.js?v=__BUILD__"></script>
+<script src="gamesui.js?v=__BUILD__"></script>
+<script src="trivia.js?v=__BUILD__"></script>
+<script src="moments.js?v=__BUILD__"></script>
+<script src="app.js?v=__BUILD__"></script>
+<script src="naturalvoice.js?v=__BUILD__"></script>
+<script src="assistant.js?v=__BUILD__"></script>

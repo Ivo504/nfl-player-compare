@@ -284,7 +284,7 @@
     ps.append(h('button', { type: 'button', class: 'chip dice', text: '\u2684 Random matchup', title: 'Pick 2 to 4 random teams', onclick: randomMatchup }));
   }
   function setMode(m) {
-    if (m === 'games' || m === 'trivia') { showView(m); return; }
+    if (m === 'games' || m === 'trivia' || m === 'moments') { showView(m); return; }
     if (S.view !== 'compare') showView('compare');
     if (m === S.mode || !MODELS[m]) { syncControls(); save(); return; }
     var cur = {};
@@ -309,9 +309,11 @@
     document.body.setAttribute('data-view', v);
     $('games').hidden = v !== 'games';
     $('trivia').hidden = v !== 'trivia';
+    $('moments').hidden = v !== 'moments';
     var meta = C.meta || {};
     if (v === 'games') { window.NFLGames.mount($('games')); $('meta').textContent = 'Every game since 1999 · scores, betting lines, box scores and injury reports · data through ' + (meta.through || ''); }
     else if (v === 'trivia') { window.NFLTrivia.mount($('trivia')); $('meta').textContent = 'NFL trivia · questions built from every season since 1999'; }
+    else if (v === 'moments') { window.NFLMoments.mount($('moments')); $('meta').textContent = 'The greatest moments in NFL history · watch them on YouTube'; }
     else setMeta();
     syncControls(); save();
   }
@@ -388,7 +390,8 @@
     if (T) modes.push(['teams', 'Teams']);
     if (window.NFLGames) modes.push(['games', 'Games']);
     if (window.NFLTrivia) modes.push(['trivia', 'Trivia']);
-    seg($('modesw'), modes, function () { return S.view !== 'compare' ? S.view : S.mode; }, setMode, 'Players, teams, games or trivia');
+    if (window.NFLMoments) modes.push(['moments', 'Moments']);
+    seg($('modesw'), modes, function () { return S.view !== 'compare' ? S.view : S.mode; }, setMode, 'Players, teams, games, trivia or moments');
     if (T) buildTeamGrid();
     $('q').addEventListener('input', renderResults);
     $('q').addEventListener('keydown', function (e) {
@@ -892,6 +895,7 @@
     var sv = saved.view || (saved.games ? 'games' : 'compare');
     if (sv === 'games' && window.NFLGames) showView('games');
     else if (sv === 'trivia' && window.NFLTrivia) showView('trivia');
+    else if (sv === 'moments' && window.NFLMoments) showView('moments');
   }
   init();
 })();

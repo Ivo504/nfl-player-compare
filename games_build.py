@@ -52,8 +52,17 @@ def same(a, b): return a == b or FRANCHISE.get(a, a) == FRANCHISE.get(b, b)
 inj = pl.read_csv(enrich_dir + "/injuries.csv", infer_schema_length=100000, null_values=["NA", ""]) if os.path.exists(enrich_dir + "/injuries.csv") else None
 total = 0
 seasons = sorted(set(sch["season"].unique().to_list()))
+# Each season file carries its own player table (gsis id, name, position), so box scores and injury
+# reports stay correct even if a browser has a data.js from a different day, where player indexes differ.
+POS_GROUP = {"QB": "QB", "RB": "RB", "FB": "RB", "HB": "RB", "WR": "WR", "TE": "TE", "K": "K", "P": "P"}
 for season in seasons:
     box = {}
+    ptab, pl_ix = [], {}
+    def local(gsis, name, pos):
+        if gsis not in pl_ix:
+            pl_ix[gsis] = len(ptab)
+            ptab.append([gsis, name, pos or ""])
+        return pl_ix[gsis]
     for r in wk.filter(pl.col("season") == season).iter_rows(named=True):
         gi = gid_ix.get(r["game_id"])
         if gi is None or r["player_id"] not in pidx: continue
@@ -62,7 +71,8 @@ for season in seasons:
         vals = [num(r[c]) or 0 for c, _ in BOX]
         while vals and vals[-1] == 0: vals.pop()
         if not vals: continue
-        box.setdefault(g[0], []).append([pidx[r["player_id"]], side] + vals)
+        prow = D["players"][pidx[r["player_id"]]]
+        box.setdefault(g[0], []).append([local(r["player_id"], prow[1], prow[2]), side] + vals)
     injd = {}
     if inj is not None:
         rows = inj.filter((pl.col("season") == season) & (pl.col("report_status").is_not_null() | pl.col("practice_primary_injury").is_not_null() | pl.col("report_primary_injury").is_not_null()))
@@ -76,9 +86,10 @@ for season in seasons:
                 status = "Limited practice" if "limited" in ps else "Did not practice" if "did not" in ps else "Full practice" if "full" in ps else "Listed"
             if "not injury related" in injury.lower(): injury = "Not injury related"
             key = "%s|%d" % (r["team"], int(r["week"]))
-            injd.setdefault(key, []).append([r["full_name"], pidx.get(r["gsis_id"], -1), r["position"], injury, status,
+            li = local(r["gsis_id"], r["full_name"], r["position"]) if r["gsis_id"] else -1
+            injd.setdefault(key, []).append([r["full_name"], li, r["position"], injury, status,
                                               r["report_secondary_injury"] or r["practice_secondary_injury"] or ""])
-    blob = {"box": box, "inj": injd, "boxf": [k for _, k in BOX]}
+    blob = {"v": 2, "pl": ptab, "box": box, "inj": injd, "boxf": [k for _, k in BOX]}
     with open(build_dir + "/games/%d.js" % season, "w") as f:
         f.write("(window.NFL_G=window.NFL_G||{})[%d]=" % season + json.dumps(blob, separators=(",", ":")) + ";")
     total += sum(len(v) for v in box.values())
