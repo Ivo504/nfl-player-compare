@@ -77,7 +77,7 @@
   function M() { return MODELS[S.mode]; }
 
   var S = {
-    mode: 'players', picks: [], grp: 'ALL', st: 'REG', from: C.years[0], to: C.years[1], pg: false,
+    mode: 'players', view: 'compare', picks: [], grp: 'ALL', st: 'REG', from: C.years[0], to: C.years[1], pg: false,
     cats: new Set(), manual: false, tab: 'compare', metric: null, xmode: 'cal', logp: null, example: false
   };
   // per-mode selections, so switching between players and teams keeps each side's picks
@@ -98,7 +98,7 @@
       var pp = S.mode === 'players' ? S.picks : (STORE.players ? STORE.players.picks : []);
       var tp = S.mode === 'teams' ? S.picks : (STORE.teams ? STORE.teams.picks : []);
       localStorage.setItem(KEY, JSON.stringify({
-        mode: S.mode, games: !!S.games,
+        mode: S.mode, games: S.view === 'games', view: S.view,
         ids: pp.map(function (p) { return C.players[p.p][0]; }),
         tids: T ? tp.map(function (p) { return T.teams[p.p][0]; }) : [],
         st: S.st, pg: S.pg, tab: S.tab, xmode: S.xmode, from: S.from, to: S.to
@@ -284,8 +284,8 @@
     ps.append(h('button', { type: 'button', class: 'chip dice', text: '\u2684 Random matchup', title: 'Pick 2 to 4 random teams', onclick: randomMatchup }));
   }
   function setMode(m) {
-    if (m === 'games') { showGames(true); return; }
-    if (S.games) showGames(false);
+    if (m === 'games' || m === 'trivia') { showView(m); return; }
+    if (S.view !== 'compare') showView('compare');
     if (m === S.mode || !MODELS[m]) { syncControls(); save(); return; }
     var cur = {};
     MODEKEYS.forEach(function (k) { cur[k] = S[k]; });
@@ -303,17 +303,19 @@
     buildYears(); buildCats(); setMeta();
     update();
   }
-  // Games mode swaps the comparison panels for the scores page (gamesui.js)
-  function showGames(on) {
-    S.games = on;
-    document.body.setAttribute('data-view', on ? 'games' : 'compare');
-    $('games').hidden = !on;
-    if (on) window.NFLGames.mount($('games'));
+  // Games and Trivia swap the comparison panels for their own pages (gamesui.js, trivia.js)
+  function showView(v) {
+    S.view = v; S.games = v === 'games';
+    document.body.setAttribute('data-view', v);
+    $('games').hidden = v !== 'games';
+    $('trivia').hidden = v !== 'trivia';
     var meta = C.meta || {};
-    if (on) $('meta').textContent = 'Every game since 1999 · scores, betting lines, box scores and injury reports · data through ' + (meta.through || '');
+    if (v === 'games') { window.NFLGames.mount($('games')); $('meta').textContent = 'Every game since 1999 · scores, betting lines, box scores and injury reports · data through ' + (meta.through || ''); }
+    else if (v === 'trivia') { window.NFLTrivia.mount($('trivia')); $('meta').textContent = 'NFL trivia · questions built from every season since 1999'; }
     else setMeta();
     syncControls(); save();
   }
+  function showGames(on) { showView(on ? 'games' : 'compare'); }
   function buildYears() {
     var fy = $('from'), ty = $('to'), ys = M().years;
     fy.replaceChildren(); ty.replaceChildren();
@@ -385,7 +387,8 @@
     var modes = [['players', 'Players']];
     if (T) modes.push(['teams', 'Teams']);
     if (window.NFLGames) modes.push(['games', 'Games']);
-    seg($('modesw'), modes, function () { return S.games ? 'games' : S.mode; }, setMode, 'Players, teams or games');
+    if (window.NFLTrivia) modes.push(['trivia', 'Trivia']);
+    seg($('modesw'), modes, function () { return S.view !== 'compare' ? S.view : S.mode; }, setMode, 'Players, teams, games or trivia');
     if (T) buildTeamGrid();
     $('q').addEventListener('input', renderResults);
     $('q').addEventListener('keydown', function (e) {
@@ -844,7 +847,7 @@
   window.NFLApp = {
     show: function (mode, ids, y) {
       if (!MODELS[mode]) return;
-      if (S.games) showGames(false);
+      if (S.view !== 'compare') showView('compare');
       if (mode !== S.mode) setMode(mode);
       setPicks(ids); S.manual = false; S.example = false; S.tab = 'compare'; S.metric = null;
       if (y) {
@@ -886,7 +889,9 @@
     }
     if (T && saved.mode === 'teams') setMode('teams');
     else { buildYears(); setMeta(); update(); }
-    if (saved.games && window.NFLGames) showGames(true);
+    var sv = saved.view || (saved.games ? 'games' : 'compare');
+    if (sv === 'games' && window.NFLGames) showView('games');
+    else if (sv === 'trivia' && window.NFLTrivia) showView('trivia');
   }
   init();
 })();
