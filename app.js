@@ -351,12 +351,12 @@
     else setMeta();
     syncControls(); save(); route();
   }
-  // each page has its own address (#home, #players, #games…) so the back button and shared links work
+  // each page has its own address (#/home, #/players, #/games…; a bare #games works too) so the back button and shared links work
   var routing = false;
   function current() { return S.view !== 'compare' ? S.view : S.mode; }
   function route() {
     if (routing || !window.history || !history.pushState) return;
-    var want = '#' + current();
+    var want = '#/' + current();
     if (location.hash !== want) history.pushState(null, '', want);
   }
   function validPage(v) {
@@ -364,7 +364,7 @@
     return VIEWS.indexOf(v) >= 0 ? !!mods[v] : !!MODELS[v];
   }
   function fromHash() {
-    var v = location.hash.replace('#', '');
+    var v = location.hash.replace(/^#\/?/, '');
     if (!v || v === current() || !validPage(v)) return false;
     routing = true; setMode(v); routing = false;
     return true;
@@ -963,12 +963,12 @@
     if (T && saved.mode === 'teams') setMode('teams');
     else { buildYears(); setMeta(); update(); }
     // a link to a page (#games, #teams…) opens it; otherwise the site opens on Home
-    var hv = location.hash.replace('#', '');
+    var hv = location.hash.replace(/^#\/?/, '');
     routing = true;
     if (validPage(hv)) { if (hv !== current()) setMode(hv); }
     else if (window.NFLHome) showView('home');
     routing = false;
-    if (window.history && history.replaceState) history.replaceState(null, '', '#' + current());
+    if (window.history && history.replaceState) history.replaceState(null, '', '#/' + current());
     registerSW();
   }
   // installable app: the service worker keeps the site working offline (sw.js)

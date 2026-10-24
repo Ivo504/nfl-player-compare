@@ -3,7 +3,7 @@
   "short_name": "NFL Compare",
   "description": "Scores, betting lines, box scores, standings and head-to-head stats for every NFL season since 1999.",
   "id": "./",
-  "start_url": "./#home",
+  "start_url": "./#/home",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
@@ -16,8 +16,8 @@
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Scores", "url": "./#games", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Compare players", "url": "./#players", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Trivia", "url": "./#trivia", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Scores", "url": "./#/games", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Compare players", "url": "./#/players", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Trivia", "url": "./#/trivia", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

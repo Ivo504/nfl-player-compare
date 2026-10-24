@@ -44,13 +44,20 @@
   function today() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
   // ---------------------------------------------------------------- the latest finished week
+  // the latest week that's mostly been played (so a lone Thursday game doesn't count as "the week"),
+  // plus any games played since, which also make the news
   function latestWeek() {
     for (var i = 0; i < NG.seasons.length; i++) {
       var s = NG.seasons[i];
-      var pl = NG.games.filter(function (g) { return g.season === s && g.played; });
-      if (!pl.length) continue;
-      var last = pl.reduce(function (m, g) { return g.date > m.date ? g : m; }, pl[0]);
-      return { season: s, week: last.week, games: pl.filter(function (g) { return g.week === last.week; }) };
+      var sg = NG.games.filter(function (g) { return g.season === s; });
+      var weeks = Array.from(new Set(sg.filter(function (g) { return g.played; }).map(function (g) { return g.week; }))).sort(function (a, b) { return b - a; });
+      for (var j = 0; j < weeks.length; j++) {
+        var wk = weeks[j], all = sg.filter(function (g) { return g.week === wk; }), done = all.filter(function (g) { return g.played; });
+        if (done.length * 2 >= all.length || j === weeks.length - 1) {
+          var later = sg.filter(function (g) { return g.played && g.week > wk; });
+          return { season: s, week: wk, games: done, news: done.concat(later) };
+        }
+      }
     }
     return null;
   }
@@ -92,10 +99,12 @@
     if (g.type) { s.rank += 20; s.kick = NG.roundName(g) + (s.kick === 'Final' ? '' : ' · ' + s.kick); }
     return s;
   }
-  // the standout player line in one game's box score
-  function bestLine(lines) {
+  // the standout player line in one game's box score, from the winning side when there is one
+  function bestLine(lines, g) {
+    var w = NG.winner(g), side = w === g.home ? 1 : w === g.away ? 0 : null;
     var best = null, bs = 0;
     lines.forEach(function (b) {
+      if (side != null && b.side !== side) return;
       var sc = Math.max(b.pyd / 25 + b.ptd * 4 - b.int * 2, b.ryd / 10 + b.rtd * 6 + b.cyd / 10 + b.ctd * 6, b.dsk * 4 + b.dint * 5 + b.ff * 3);
       if (sc > bs) { bs = sc; best = b; }
     });
@@ -205,7 +214,7 @@
   }
   function storyCard(s) {
     return h('button', { type: 'button', class: 'hm-story', onclick: function () { openGame(s.g); } },
-      h('span', { class: 'hm-kk ' + s.tone, text: s.kick }),
+      h('span', { class: 'hm-kk ' + s.tone, text: (s.g.type ? '' : weekLabel(s.g) + ' · ') + s.kick }),
       h('h3', { text: s.title }),
       h('span', { class: 'hm-sscore' }, helm(s.w), h('b', { text: s.score }), helm(s.l, true)),
       h('p', { class: 'hm-sdesc', 'data-g': s.g.id, text: bettingText(s.g) }));
@@ -383,7 +392,7 @@
   function render() {
     if (!host) return;
     var lw = latestWeek();
-    var stories = lw ? lw.games.map(story).sort(function (a, b) { return b.rank - a.rank; }) : [];
+    var stories = lw ? lw.news.map(story).sort(function (a, b) { return b.rank - a.rank; }) : [];
     var main = h('div', { class: 'hm-main' });
     var side = h('aside', { class: 'hm-side', 'aria-label': 'Standings, leaders and injuries' });
     if (stories.length) {
@@ -405,7 +414,7 @@
     if (lw) NG.loadSeason(lw.season).then(function (data) {
       perfSlot.replaceChildren(performers(lw, data));
       stories.slice(0, 4).forEach(function (s, i) {
-        var b = bestLine(NG.boxLines(data, s.g));
+        var b = bestLine(NG.boxLines(data, s.g), s.g);
         if (!b) return;
         var txt = b.name + ' (' + b.pos + ', ' + (b.side === 1 ? s.g.home : s.g.away) + '): ' + lineText(b) + '.';
         var el = i === 0 ? document.getElementById('hmleaddesc') : host.querySelector('.hm-sdesc[data-g="' + s.g.id + '"]');
