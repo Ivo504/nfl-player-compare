@@ -1,5 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){var t='dark';try{var s=localStorage.getItem('nflcompare.v1.theme');if(s==='light'||s==='dark')t=s;}catch(e){}document.documentElement.setAttribute('data-theme',t);})();</script>
 <style>
 @font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/barlow-latin-400-normal.woff2) format("woff2")}
 @font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-latin-500-normal.woff2) format("woff2")}
@@ -47,51 +48,51 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0d0d0d;
-    --surface: #1a1a19;
-    --tint: #262625;
-    --ink: #f0efec;
-    --ink2: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --axis: #3d3d3a;
+    --bg: #0a0e18;
+    --surface: #121829;
+    --tint: #1c2540;
+    --ink: #eef1f7;
+    --ink2: #a9b3c9;
+    --muted: #7d88a3;
+    --grid: #222b45;
+    --axis: #2c3654;
     --line: rgba(255, 255, 255, 0.10);
     --accent: #34c46f;
     --on-accent: #08130c;
     --turf-a: #08331c;
     --turf-b: #11633a;
-    --glow1: rgba(57, 135, 229, 0.12);
-    --glow2: rgba(217, 89, 38, 0.10);
+    --glow1: rgba(90, 162, 255, 0.14);
+    --glow2: rgba(247, 215, 116, 0.08);
     --focus: #3987e5;
-    --s1: #3987e5;
-    --s2: #d95926;
-    --s3: #199e70;
-    --s4: #c98500;
+    --s1: #5aa2ff;
+    --s2: #ff8a5c;
+    --s3: #2fd39a;
+    --s4: #ffc23d;
     --shadow: rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0d0d0d;
-  --surface: #1a1a19;
-  --tint: #262625;
-  --ink: #f0efec;
-  --ink2: #c3c2b7;
-  --muted: #898781;
-  --grid: #2c2c2a;
-  --axis: #3d3d3a;
+  --bg: #0a0e18;
+  --surface: #121829;
+  --tint: #1c2540;
+  --ink: #eef1f7;
+  --ink2: #a9b3c9;
+  --muted: #7d88a3;
+  --grid: #222b45;
+  --axis: #2c3654;
   --line: rgba(255, 255, 255, 0.10);
   --accent: #34c46f;
   --on-accent: #08130c;
   --turf-a: #08331c;
   --turf-b: #11633a;
-  --glow1: rgba(57, 135, 229, 0.12);
-  --glow2: rgba(217, 89, 38, 0.10);
+  --glow1: rgba(90, 162, 255, 0.14);
+  --glow2: rgba(247, 215, 116, 0.08);
   --focus: #3987e5;
-  --s1: #3987e5;
-  --s2: #d95926;
-  --s3: #199e70;
-  --s4: #c98500;
+  --s1: #5aa2ff;
+  --s2: #ff8a5c;
+  --s3: #2fd39a;
+  --s4: #ffc23d;
   --shadow: rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
@@ -120,6 +121,8 @@ header.hero:hover .ball { transform: rotate(340deg); }
 .modesw button { font: inherit; font-family: var(--font-label); font-size: 17px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 16px; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,0.85); cursor: pointer; transition: background 0.2s, color 0.2s; }
 .modesw button:hover { color: #fff; background: rgba(255,255,255,0.12); }
 .modesw button[aria-pressed="true"] { background: #fff; color: var(--turf-a); }
+:root[data-theme="dark"] .modesw button[aria-pressed="true"] { background: #f7d774; color: #2a1a00; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .modesw button[aria-pressed="true"] { background: #f7d774; color: #2a1a00; } }
 .modesw { max-width: 100%; flex-wrap: wrap; }
 @media (max-width: 520px) { .modesw button { padding: 5px 10px; font-size: 15px; letter-spacing: 0.03em; } .hbtns { width: 100%; } }
 .pick { display: flex; flex-direction: column; gap: 12px; }
