@@ -147,6 +147,7 @@
     syncControls();
     renderView(A);
     save();
+    if (window.NFLMotion) { window.NFLMotion.count($('view')); window.NFLMotion.count($('picks')); }
   }
 
 
@@ -227,6 +228,38 @@
     });
   }
 
+  // stats for a head-to-head clip (clips.js), by position group; low = fewer is better
+  var CLIPROWS = {
+    QB: [['Games', 'g'], ['Pass yds', 'pyd'], ['Pass TD', 'ptd'], ['Interceptions', 'int', 'low'], ['Passer rating', function (t) { return t.att >= 50 ? C.rating(t) : null; }, 1], ['Rush yds', 'ryd']],
+    RB: [['Games', 'g'], ['Rush yds', 'ryd'], ['Rush TD', 'rtd'], ['Yards per carry', function (t) { return t.car >= 30 ? t.ryd / t.car : null; }, 1], ['Catches', 'rec'], ['Rec yds', 'cyd']],
+    WR: [['Games', 'g'], ['Catches', 'rec'], ['Rec yds', 'cyd'], ['Rec TD', 'ctd'], ['Yards per catch', function (t) { return t.rec >= 20 ? t.cyd / t.rec : null; }, 1], ['Targets', 'tgt']],
+    DEF: [['Games', 'g'], ['Tackles', function (t) { return t.tks + t.tka; }], ['Sacks', 'dsk', 0, 1], ['Interceptions', 'dint'], ['Forced fumbles', 'ff'], ['Passes defended', 'pd']],
+    K: [['Games', 'g'], ['FG made', 'fgm'], ['FG %', function (t) { return t.fga >= 10 ? t.fgm / t.fga * 100 : null; }, 1], ['50+ yd FG', 'fg50'], ['Extra points', 'xpm']],
+    P: [['Games', 'g'], ['Punts', 'pnt'], ['Yards per punt', function (t) { return t.pnt >= 10 ? t.pntyd / t.pnt : null; }, 1], ['Inside 20', 'pnt20']]
+  };
+  CLIPROWS.TE = CLIPROWS.WR;
+  function clipSpec(A) {
+    var grp = C.players[S.picks[0].p][3], defs = CLIPROWS[grp];
+    var slots = window.NFLClips.slot, stype = { REG: 'Regular season', POST: 'Playoffs', ALL: 'Regular season + playoffs' }[S.st] || '';
+    var players = A.map(function (x, i) {
+      var pl = C.players[S.picks[i].p], last = pl[1].replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/, '').split(' ');
+      return { name: pl[1], short: last[last.length - 1], team: (pl[6] || '').split('/').pop(), color: slots[S.picks[i].slot], meta: pl[2] + ' · ' + (teamsText(x) || pl[6]) };
+    });
+    var rows = defs.map(function (d) {
+      var vals = A.map(function (x) { return typeof d[1] === 'function' ? d[1](x.tot) : x.tot[d[1]]; });
+      var ok = vals.filter(function (v) { return v != null; }), best = d[2] === 'low' ? Math.min.apply(null, ok) : Math.max.apply(null, ok);
+      var lead = ok.length > 1 && vals.filter(function (v) { return v === best; }).length === 1 ? vals.indexOf(best) : null;
+      return { label: d[0], vals: vals, lead: lead, txt: vals.map(function (v) { return v == null ? '–' : (d[2] === 1 || d[3]) && v % 1 ? v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Math.round(v).toLocaleString('en-US'); }) };
+    });
+    var names = players.map(function (p) { return p.short; });
+    return {
+      kind: 'h2h', kicker: stype + ' · ' + (S.from === S.to ? S.from : S.from + '–' + S.to), title: names.slice(0, -1).join(', ') + ' vs ' + names[names.length - 1],
+      file: names.join('-vs-').toLowerCase().replace(/[^a-z-]/g, ''), teams: players.map(function (p) { return p.team; }),
+      about: 'An animated head-to-head of these ' + players.length + ' players, with the leader in each stat starred.',
+      players: players, rows: rows
+    };
+  }
+
   // ---------- picker ----------
   function renderPicks(A) {
     var box = $('picks');
@@ -253,6 +286,10 @@
           linkRow(hn.bio))));
     });
     shown = new Set(S.picks.map(function (pk) { return pk.p; }));
+    // a head-to-head clip needs 2+ players from the same position group
+    var grps = S.picks.map(function (pk) { return C.players[pk.p][3]; });
+    if (window.NFLClips && S.picks.length >= 2 && grps.every(function (g) { return g === grps[0]; }) && CLIPROWS[grps[0]])
+      box.append(h('div', { class: 'clipcell' }, window.NFLClips.button('Make a clip of this matchup', function () { window.NFLClips.open(clipSpec(aggs())); })));
     $('example').hidden = !S.example;
     $('example').textContent = 'Example comparison. Search above to swap in your own players.';
     var full = S.picks.length >= MAXP;
@@ -350,6 +387,7 @@
     else if (v === 'moments') { window.NFLMoments.mount($('moments')); $('meta').textContent = 'The greatest moments in NFL history · watch them on YouTube'; }
     else setMeta();
     syncControls(); save(); route();
+    if (window.NFLMotion && was !== v) window.NFLMotion.play(v === 'compare' ? $('picks').parentNode.parentNode : $(v));
   }
   // each page has its own address (#/home, #/players, #/games…; a bare #games works too) so the back button and shared links work
   var routing = false;

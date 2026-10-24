@@ -9,7 +9,7 @@ python aggregate.py work/data _site
 python enrich_build.py work/data work/enrich . _site
 python teams_build.py work/enrich _site
 python games_build.py work/data work/enrich _site
-cp index.html core.js teamcore.js art.js gamesui.js trivia.js moments.js home.js app.js naturalvoice.js assistant.js sw.js manifest.webmanifest icon.svg _site/
+cp index.html core.js teamcore.js art.js gamesui.js trivia.js moments.js motion.js clips.js home.js app.js naturalvoice.js assistant.js sw.js manifest.webmanifest icon.svg _site/
 cp -r icons _site/
 # stamp this build on every script URL so browsers never mix files from different days
 BUILD=$(date -u +%Y%m%d%H%M)

@@ -210,7 +210,22 @@
       desc,
       h('div', { class: 'hm-acts' },
         h('button', { type: 'button', class: 'hm-btn gold', text: 'Box score', onclick: function () { openGame(g); } }),
-        h('a', { class: 'hm-btn ghost', href: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(g.season + ' ' + NG.teamName(g.away, g.season) + ' vs ' + NG.teamName(g.home, g.season) + ' highlights'), target: '_blank', rel: 'noopener', text: 'Highlights on YouTube' })));
+        h('a', { class: 'hm-btn ghost', href: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(g.season + ' ' + NG.teamName(g.away, g.season) + ' vs ' + NG.teamName(g.home, g.season) + ' highlights'), target: '_blank', rel: 'noopener', text: 'Highlights on YouTube' }),
+        window.NFLClips ? window.NFLClips.button('Make a clip', function () { window.NFLClips.open(gameClip(s, desc.textContent)); }) : null));
+  }
+  function gameClip(s, note) {
+    var g = s.g, wHome = s.w === g.home;
+    var chips = [], c = NG.coverText(g), tt = NG.totalText(g);
+    if (c && c !== 'Push') chips.push(c.replace(/^(\w+) covered$/, function (m, t) { return nick(t, g.season) + ' covered'; }));
+    if (tt) chips.push(tt.replace(/ \(.*/, '') + (g.total != null ? ' ' + g.total : ''));
+    return {
+      kind: 'game', kicker: s.kick + ' · ' + weekLabel(g), title: s.title, hot: s.tone === 'red', final: g.ot ? 'FINAL/OT' : 'FINAL',
+      file: g.season + '-' + g.away.toLowerCase() + '-at-' + g.home.toLowerCase(), teams: [s.w, s.l],
+      about: 'An animated final score for ' + NG.teamName(g.away, g.season) + ' at ' + NG.teamName(g.home, g.season) + '.',
+      w: { code: s.w, name: NG.teamName(s.w, g.season), score: wHome ? g.hs : g.as },
+      l: { code: s.l, name: NG.teamName(s.l, g.season), score: wHome ? g.as : g.hs },
+      note: note, chips: chips
+    };
   }
   function storyCard(s) {
     return h('button', { type: 'button', class: 'hm-story', onclick: function () { openGame(s.g); } },
@@ -233,7 +248,7 @@
     var de = top('dsk');
     if (de && de.dsk >= 1) cards.push({ cat: 'Pass rush', b: de, big: num(de.dsk), unit: de.dsk === 1 ? 'sack' : 'sacks', line: plural(de.tkl, 'tackle'), col: 's4' });
     else { var tk = top('tkl'); if (tk && tk.tkl > 0) cards.push({ cat: 'Tackles', b: tk, big: num(tk.tkl), unit: 'tackles', line: tk.dsk ? num(tk.dsk) + ' sacks' : '', col: 's4' }); }
-    return h('div', { class: 'hm-perf' }, cards.map(function (c) {
+    var grid = h('div', { class: 'hm-perf' }, cards.map(function (c) {
       return h('button', { type: 'button', class: 'hm-pc', style: '--pc:var(--' + c.col + ')', disabled: c.b.p < 0, onclick: function () { showPlayer(c.b.p); },
         title: c.b.p >= 0 ? 'Compare ' + c.b.name : null },
         h('span', { class: 'hm-pcat', text: c.cat }),
@@ -241,6 +256,18 @@
         h('span', { class: 'hm-pbig' }, h('b', { text: c.big }), h('small', { text: c.unit })),
         c.line ? h('span', { class: 'hm-pline', text: c.line }) : null);
     }));
+    var label = weekLabel(lw.games[0]);
+    var clip = window.NFLClips && cards.length ? h('div', { class: 'hm-acts' }, window.NFLClips.button('Make a clip of these', function () {
+      window.NFLClips.open({
+        kind: 'performers', kicker: lw.season + ' ' + label, title: label + ' top performers', file: lw.season + '-' + label.toLowerCase().replace(/\W+/g, '-') + '-top-performers',
+        about: 'An animated card of ' + label + '\'s top performers, ready to post.',
+        teams: cards.map(function (c) { return c.b.team; }),
+        items: cards.map(function (c) {
+          return { cat: c.cat, name: c.b.name, team: c.b.team, sub: (c.b.pos || '') + ' · ' + c.b.team + (c.b.side === 1 ? ' vs ' : ' at ') + c.b.opp, big: c.big, unit: c.unit, line: c.line, color: window.NFLClips.slot[+c.col.slice(1) - 1] };
+        })
+      });
+    })) : null;
+    return h('div', { class: 'hm-perfwrap' }, grid, clip);
   }
 
   function lines() {
@@ -413,6 +440,7 @@
     // box scores and injury reports live in the per-season files
     if (lw) NG.loadSeason(lw.season).then(function (data) {
       perfSlot.replaceChildren(performers(lw, data));
+      if (window.NFLMotion) window.NFLMotion.count(perfSlot);
       stories.slice(0, 4).forEach(function (s, i) {
         var b = bestLine(NG.boxLines(data, s.g), s.g);
         if (!b) return;

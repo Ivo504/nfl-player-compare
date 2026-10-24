@@ -753,6 +753,50 @@ input[type="search"].mo-search:focus { border-color: #f7d774; box-shadow: 0 0 0 
   .presetrow .chip, #grpchips .chip { flex: none; white-space: nowrap; }
 }
 @media (display-mode: standalone) { header.hero { border-radius: 0 0 14px 14px; } }
+/* ---------- motion (motion.js): pages rise in, numbers count up, the stadium lights come on ---------- */
+.rise { animation: rise 0.55s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+header.hero .stadium [fill="url(#beam)"], header.hero .stadium [fill="url(#lamp)"] { animation: lightson 1.6s ease-out both; }
+header.hero .stadium [fill="url(#lamp)"]:last-of-type, header.hero .stadium polygon[fill="url(#beam)"]:nth-of-type(2) { animation-delay: 0.25s; }
+@keyframes lightson { 0% { opacity: 0; } 18% { opacity: 0.9; } 26% { opacity: 0.15; } 38% { opacity: 1; } 46% { opacity: 0.55; } 60%, 100% { opacity: 1; } }
+header.hero .ball { animation: ballspin 0.9s cubic-bezier(.2,.8,.2,1) 0.3s both; }
+@keyframes ballspin { from { transform: rotate(-30deg) translateX(-40px) rotate(-400deg); opacity: 0; } to { opacity: 1; } }
+.hm-lead::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.08) 50%, transparent 65%); transform: translateX(-100%); animation: shine 1.4s ease-out 0.6s both; }
+@keyframes shine { to { transform: translateX(100%); } }
+.hm-tg.live { animation: livebeat 2s ease-in-out infinite; }
+@keyframes livebeat { 50% { background: color-mix(in srgb, var(--hot) 10%, transparent); } }
+.tabbar button:active svg { transform: scale(0.85); }
+.tabbar svg { transition: transform 0.15s; }
+.tabbar button[aria-pressed="true"] svg { animation: tabpop 0.35s cubic-bezier(.2,.9,.3,1.4); }
+@keyframes tabpop { 40% { transform: scale(1.22) translateY(-2px); } }
+.hm-story, .hm-pc, .gcard, .mo-card { will-change: transform; }
+/* ---------- stat clips (clips.js) ---------- */
+.hm-btn.clip { color: #fff; background: linear-gradient(120deg, #7b3fe4, #e63e8b 60%, #ff8a3d); border: 0; }
+.hm-btn.clip:hover { filter: brightness(1.08); }
+.cl-ico { width: 18px; height: 14px; border-radius: 3px; border: 2px solid currentColor; position: relative; flex: none; }
+.cl-ico::after { content: ""; position: absolute; left: 4px; top: 1px; border-left: 6px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+.hm-perfwrap { display: flex; flex-direction: column; gap: 12px; }
+.clipcell { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.cl-dlg { width: min(980px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); overflow: auto; }
+.cl-dlg::backdrop { background: rgba(5, 8, 15, 0.72); backdrop-filter: blur(4px); }
+.cl-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.cl-head h2 { margin: 0; font-family: var(--font-label); font-size: 26px; letter-spacing: 0.03em; text-transform: uppercase; }
+.cl-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 18px; padding: 16px; align-items: start; }
+@media (max-width: 720px) { .cl-body { grid-template-columns: minmax(0, 1fr); } }
+.cl-stage { position: relative; display: flex; justify-content: center; background: #05080f; border-radius: 12px; padding: 10px; }
+.cl-canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: min(64dvh, 640px); border-radius: 8px; }
+.cl-bar { position: absolute; left: 10px; right: 10px; bottom: 4px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; visibility: hidden; }
+.cl-bar i { display: block; height: 100%; width: 0; background: var(--hot); }
+.cl-dlg.rec .cl-bar { visibility: visible; }
+.cl-dlg.rec .cl-rec { opacity: 0.6; pointer-events: none; }
+.cl-side { display: flex; flex-direction: column; gap: 10px; }
+.cl-what { margin: 0; color: var(--ink2); }
+.cl-fmt { flex-wrap: wrap; }
+.cl-acts, .cl-out { display: flex; flex-wrap: wrap; gap: 8px; }
+.cl-out:empty { display: none; }
+.cl-status { margin: 0; font-size: 14px; }
+.cl-status:empty { display: none; }
+.cl-note { margin: 0; font-size: 12px; color: var(--ink2); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } svg.anim .ln { stroke-dashoffset: 0; } }
 </style>
 
@@ -841,6 +885,8 @@ input[type="search"].mo-search:focus { border-color: #f7d774; box-shadow: 0 0 0 
 <script src="gamesui.js?v=__BUILD__"></script>
 <script src="trivia.js?v=__BUILD__"></script>
 <script src="moments.js?v=__BUILD__"></script>
+<script src="motion.js?v=__BUILD__"></script>
+<script src="clips.js?v=__BUILD__"></script>
 <script src="home.js?v=__BUILD__"></script>
 <script src="app.js?v=__BUILD__"></script>
 <script src="naturalvoice.js?v=__BUILD__"></script>
