@@ -357,7 +357,7 @@
   function route() {
     if (routing || !window.history || !history.pushState) return;
     var want = '#/' + current();
-    if (location.hash !== want) history.pushState(null, '', want);
+    if (location.hash !== want) try { history.pushState(null, '', want); } catch (e) { /* some embedded frames refuse address changes */ }
   }
   function validPage(v) {
     var mods = { home: window.NFLHome, games: window.NFLGames, trivia: window.NFLTrivia, moments: window.NFLMoments };
@@ -968,7 +968,7 @@
     if (validPage(hv)) { if (hv !== current()) setMode(hv); }
     else if (window.NFLHome) showView('home');
     routing = false;
-    if (window.history && history.replaceState) history.replaceState(null, '', '#/' + current());
+    if (window.history && history.replaceState) try { history.replaceState(null, '', '#/' + current()); } catch (e) { /* some embedded frames refuse address changes */ }
     registerSW();
   }
   // installable app: the service worker keeps the site working offline (sw.js)
