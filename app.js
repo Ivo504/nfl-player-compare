@@ -201,6 +201,32 @@
   }
   function posTag(pl) { return h('span', { class: 'pos g' + pl[3], text: pl[2] }); }
 
+  // three headline numbers on each player card, picked by position group
+  var KEYSTATS = {
+    QB: [['Pass yds', function (t) { return t.pyd; }], ['Pass TD', function (t) { return t.ptd; }], ['Rating', function (t) { return t.att >= 50 ? C.rating(t) : null; }, 1]],
+    RB: [['Rush yds', function (t) { return t.ryd; }], ['Rush TD', function (t) { return t.rtd; }], ['Scrim yds', function (t) { return t.ryd + t.cyd; }]],
+    WR: [['Catches', function (t) { return t.rec; }], ['Rec yds', function (t) { return t.cyd; }], ['Rec TD', function (t) { return t.ctd; }]],
+    DEF: [['Tackles', function (t) { return t.tks + t.tka; }], ['Sacks', function (t) { return t.dsk; }, 1], ['INT', function (t) { return t.dint; }]],
+    K: [['FG made', function (t) { return t.fgm; }], ['FG %', function (t) { return t.fga >= 10 ? t.fgm / t.fga * 100 : null; }, 1], ['50+ yd', function (t) { return t.fg50; }]],
+    P: [['Punts', function (t) { return t.pnt; }], ['Avg', function (t) { return t.pnt >= 10 ? t.pntyd / t.pnt : null; }, 1], ['Inside 20', function (t) { return t.pnt20; }]]
+  };
+  KEYSTATS.TE = KEYSTATS.WR;
+  function keyStats(A) {
+    var groups = A.map(function (x, i) { return C.players[S.picks[i].p][3]; });
+    var same = groups.every(function (g) { return g === groups[0]; });
+    var vals = A.map(function (x, i) { return (KEYSTATS[groups[i]] || []).map(function (k) { return k[1](x.tot); }); });
+    return A.map(function (x, i) {
+      var ks = KEYSTATS[groups[i]];
+      if (!ks) return null;
+      return h('dl', { class: 'kstats' }, ks.map(function (k, j) {
+        var v = vals[i][j];
+        var lead = same && A.length > 1 && v != null && vals.every(function (r) { return r[j] == null || r[j] <= v; });
+        var txt = v == null ? '–' : k[2] ? v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Math.round(v).toLocaleString('en-US');
+        return h('div', { class: lead ? 'lead' : null }, h('dt', { text: k[0] }), h('dd', { text: txt }));
+      }));
+    });
+  }
+
   // ---------- picker ----------
   function renderPicks(A) {
     var box = $('picks');
@@ -208,6 +234,7 @@
     var teams = S.mode === 'teams';
     $('ppick').hidden = teams; $('tpick').hidden = !teams;
     if (teams) { renderTeamPicks(A, box); return; }
+    var KS = keyStats(A);
     A.forEach(function (x, i) {
       var pk = S.picks[i], pl = C.players[pk.p];
       var hn = C.honors(pk.p);
@@ -216,12 +243,14 @@
         helmetBox('av helm', (pl[6] || '').split('/').pop(), initials(pl[1])),
         h('div', { class: 'pinfo' },
           h('div', { class: 'pn', text: pl[1] }),
-          h('div', { class: 'pm' }, posTag(pl), ' ' + (teamsText(x) || pl[6]) + ' · ' + spanText(x)),
+          h('div', { class: 'pm' }, posTag(pl), ' ' + (teamsText(x) || pl[6]) + ' · ' + spanText(x))),
+        h('button', { type: 'button', class: 'x', 'aria-label': 'Remove ' + pl[1], onclick: function () { removePlayer(pk.p); } }, '×'),
+        h('div', { class: 'pmore' },
+          KS[i],
           bioText(hn.bio) ? h('div', { class: 'bio', text: bioText(hn.bio) }) : null,
           pl[7] ? h('div', { class: 'pill', text: 'Career began before 1999' }) : null,
           badgeList(hn).length ? h('div', { class: 'badges' }, badgeList(hn)) : null,
-          linkRow(hn.bio)),
-        h('button', { type: 'button', class: 'x', 'aria-label': 'Remove ' + pl[1], onclick: function () { removePlayer(pk.p); } }, '×')));
+          linkRow(hn.bio))));
     });
     shown = new Set(S.picks.map(function (pk) { return pk.p; }));
     $('example').hidden = !S.example;
