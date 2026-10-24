@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1633"/><stop offset="1" stop-color="#1b2a5c"/></linearGradient>
+    <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f8f4e"/><stop offset="1" stop-color="#0d5a2f"/></linearGradient>
+    <radialGradient id="lamp" cx=".78" cy=".14" r=".5"><stop offset="0" stop-color="#fff3b0" stop-opacity=".45"/><stop offset="1" stop-color="#fff3b0" stop-opacity="0"/></radialGradient>
+    <linearGradient id="ball" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8662a"/><stop offset="1" stop-color="#6e3210"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <rect width="512" height="512" fill="url(#lamp)"/>
+  <path d="M0 360 Q256 330 512 360 V512 H0 Z" fill="url(#turf)"/>
+  <g stroke="#ffffff" stroke-opacity=".35" stroke-width="5"><line x1="150" y1="352" x2="90" y2="512"/><line x1="256" y1="345" x2="256" y2="512"/><line x1="362" y1="352" x2="422" y2="512"/></g>
+  <g transform="rotate(-32 256 236)">
+    <ellipse cx="256" cy="236" rx="168" ry="100" fill="url(#ball)"/>
+    <path d="M118 236 Q256 190 394 236" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="10"/>
+    <rect x="132" y="176" width="16" height="120" rx="6" fill="#f7d774" transform="rotate(8 140 236)"/>
+    <rect x="364" y="176" width="16" height="120" rx="6" fill="#f7d774" transform="rotate(-8 372 236)"/>
+    <rect x="190" y="228" width="132" height="16" rx="8" fill="#ffffff"/>
+    <g fill="#ffffff"><rect x="204" y="210" width="12" height="52" rx="6"/><rect x="232" y="210" width="12" height="52" rx="6"/><rect x="260" y="210" width="12" height="52" rx="6"/><rect x="288" y="210" width="12" height="52" rx="6"/></g>
+  </g>
+</svg>

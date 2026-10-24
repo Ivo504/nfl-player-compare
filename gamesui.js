@@ -463,7 +463,7 @@
 
   function mount(el) {
     host = el;
-    if (!live.listeners.length) live.listeners.push(refreshLive);
+    if (live.listeners.indexOf(refreshLive) < 0) live.listeners.push(refreshLive);
     render();
     if (live.ok === null || Date.now() - live.at > 30000) fetchLive();
   }

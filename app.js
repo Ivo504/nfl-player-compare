@@ -284,9 +284,9 @@
     ps.append(h('button', { type: 'button', class: 'chip dice', text: '\u2684 Random matchup', title: 'Pick 2 to 4 random teams', onclick: randomMatchup }));
   }
   function setMode(m) {
-    if (m === 'games' || m === 'trivia' || m === 'moments') { showView(m); return; }
-    if (S.view !== 'compare') showView('compare');
-    if (m === S.mode || !MODELS[m]) { syncControls(); save(); return; }
+    if (VIEWS.indexOf(m) >= 0) { showView(m); return; }
+    if (S.view !== 'compare') { var r = routing; routing = true; showView('compare'); routing = r; }
+    if (m === S.mode || !MODELS[m]) { syncControls(); save(); route(); return; }
     var cur = {};
     MODEKEYS.forEach(function (k) { cur[k] = S[k]; });
     STORE[S.mode] = cur;
@@ -301,22 +301,47 @@
     }
     hiddenSlots.clear(); shown = new Set();
     buildYears(); buildCats(); setMeta();
-    update();
+    update(); route();
   }
-  // Games and Trivia swap the comparison panels for their own pages (gamesui.js, trivia.js)
+  // Home, Games, Trivia and Moments swap the comparison panels for their own pages (home.js, gamesui.js, trivia.js, moments.js)
+  var VIEWS = ['home', 'games', 'trivia', 'moments'];
   function showView(v) {
+    var was = S.view;
     S.view = v; S.games = v === 'games';
     document.body.setAttribute('data-view', v);
+    if (was !== v) window.scrollTo(0, 0);
+    $('home').hidden = v !== 'home';
     $('games').hidden = v !== 'games';
     $('trivia').hidden = v !== 'trivia';
     $('moments').hidden = v !== 'moments';
     var meta = C.meta || {};
-    if (v === 'games') { window.NFLGames.mount($('games')); $('meta').textContent = 'Every game since 1999 · scores, betting lines, box scores and injury reports · data through ' + (meta.through || ''); }
+    if (v === 'home') { window.NFLHome.mount($('home')); $('meta').textContent = 'Scores, stories, standings and stats from every season since 1999 · data through ' + (meta.through || ''); }
+    else if (v === 'games') { window.NFLGames.mount($('games')); $('meta').textContent = 'Every game since 1999 · scores, betting lines, box scores and injury reports · data through ' + (meta.through || ''); }
     else if (v === 'trivia') { window.NFLTrivia.mount($('trivia')); $('meta').textContent = 'NFL trivia · questions built from every season since 1999'; }
     else if (v === 'moments') { window.NFLMoments.mount($('moments')); $('meta').textContent = 'The greatest moments in NFL history · watch them on YouTube'; }
     else setMeta();
-    syncControls(); save();
+    syncControls(); save(); route();
   }
+  // each page has its own address (#home, #players, #games…) so the back button and shared links work
+  var routing = false;
+  function current() { return S.view !== 'compare' ? S.view : S.mode; }
+  function route() {
+    if (routing || !window.history || !history.pushState) return;
+    var want = '#' + current();
+    if (location.hash !== want) history.pushState(null, '', want);
+  }
+  function validPage(v) {
+    var mods = { home: window.NFLHome, games: window.NFLGames, trivia: window.NFLTrivia, moments: window.NFLMoments };
+    return VIEWS.indexOf(v) >= 0 ? !!mods[v] : !!MODELS[v];
+  }
+  function fromHash() {
+    var v = location.hash.replace('#', '');
+    if (!v || v === current() || !validPage(v)) return false;
+    routing = true; setMode(v); routing = false;
+    return true;
+  }
+  window.addEventListener('hashchange', fromHash);
+  window.addEventListener('popstate', fromHash);
   function showGames(on) { showView(on ? 'games' : 'compare'); }
   function buildYears() {
     var fy = $('from'), ty = $('to'), ys = M().years;
@@ -386,12 +411,25 @@
     fy.addEventListener('change', function () { S.from = +fy.value; if (S.from > S.to) S.to = S.from; update(); });
     ty.addEventListener('change', function () { S.to = +ty.value; if (S.to < S.from) S.from = S.to; update(); });
     buildCats();
-    var modes = [['players', 'Players']];
+    var modes = [];
+    if (window.NFLHome) modes.push(['home', 'Home']);
+    modes.push(['players', 'Players']);
     if (T) modes.push(['teams', 'Teams']);
     if (window.NFLGames) modes.push(['games', 'Games']);
     if (window.NFLTrivia) modes.push(['trivia', 'Trivia']);
     if (window.NFLMoments) modes.push(['moments', 'Moments']);
-    seg($('modesw'), modes, function () { return S.view !== 'compare' ? S.view : S.mode; }, setMode, 'Players, teams, games, trivia or moments');
+    seg($('modesw'), modes, function () { return S.view !== 'compare' ? S.view : S.mode; }, setMode, 'Sections');
+    // on phones the sections move to a tab bar along the bottom of the screen
+    var TB_ICONS = { home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z', players: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0', teams: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', games: 'M4 5h16v14H4zM12 5v14M4 12h16', trivia: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5M12 18h.01', moments: 'M12 2l2.9 6.9L22 9.3l-5.5 4.8L18.2 21 12 17.3 5.8 21l1.7-6.9L2 9.3l7.1-.4z' };
+    var tb = $('tabbar');
+    modes.forEach(function (it) {
+      var b = h('button', { type: 'button', 'data-v': it[0] },
+        sv('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, sv('path', { d: TB_ICONS[it[0]] })),
+        h('span', { text: it[1] }));
+      b.addEventListener('click', function () { setMode(it[0]); });
+      tb.append(b);
+    });
+    tb._get = $('modesw')._get;
     if (T) buildTeamGrid();
     $('q').addEventListener('input', renderResults);
     $('q').addEventListener('keydown', function (e) {
@@ -465,7 +503,7 @@
     setPicks(ids); S.manual = false; S.example = false; update();
   }
   function syncControls() {
-    ['grpchips', 'stseg', 'pgseg', 'xseg', 'tabs', 'modesw'].forEach(function (id) { syncSeg($(id)); });
+    ['grpchips', 'stseg', 'pgseg', 'xseg', 'tabs', 'modesw', 'tabbar'].forEach(function (id) { syncSeg($(id)); });
     $('from').value = S.from; $('to').value = S.to;
     Array.prototype.forEach.call($('cats').children, function (b) {
       var c = b.getAttribute('data-c');
@@ -850,17 +888,20 @@
   window.NFLApp = {
     show: function (mode, ids, y) {
       if (!MODELS[mode]) return;
+      var r = routing; routing = true;
       if (S.view !== 'compare') showView('compare');
       if (mode !== S.mode) setMode(mode);
+      routing = r;
       setPicks(ids); S.manual = false; S.example = false; S.tab = 'compare'; S.metric = null;
       if (y) {
         var ys = M().years;
         S.from = Math.max(ys[0], y.from); S.to = Math.min(ys[1], y.to);
         if (y.st) S.st = y.st;
       }
-      update();
+      update(); route();
       $('tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
+    go: function (v) { setMode(v); },
     showGame: function (id) {
       if (!window.NFLGames) return;
       showGames(true);
@@ -892,10 +933,19 @@
     }
     if (T && saved.mode === 'teams') setMode('teams');
     else { buildYears(); setMeta(); update(); }
-    var sv = saved.view || (saved.games ? 'games' : 'compare');
-    if (sv === 'games' && window.NFLGames) showView('games');
-    else if (sv === 'trivia' && window.NFLTrivia) showView('trivia');
-    else if (sv === 'moments' && window.NFLMoments) showView('moments');
+    // a link to a page (#games, #teams…) opens it; otherwise the site opens on Home
+    var hv = location.hash.replace('#', '');
+    routing = true;
+    if (validPage(hv)) { if (hv !== current()) setMode(hv); }
+    else if (window.NFLHome) showView('home');
+    routing = false;
+    if (window.history && history.replaceState) history.replaceState(null, '', '#' + current());
+    registerSW();
+  }
+  // installable app: the service worker keeps the site working offline (sw.js)
+  function registerSW() {
+    if (!('serviceWorker' in navigator) || !/^https:|^http:\/\/localhost/.test(location.href)) return;
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* offline support is optional */ }); });
   }
   init();
 })();
